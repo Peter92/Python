@@ -1,4 +1,5 @@
-import math, random, zlib
+import math, random, zlib, md5, os, cPickle, base64
+import marshal as cPickle
 
 class LetterLoop:
     letters = list( "abcdefghijklmnopqrstuvwxyz" )
@@ -27,6 +28,8 @@ class LetterLoop:
      
 
 class NameGen:
+    
+    cachePath = "NameGen.cache"
     
     def __init__( self, wordInput = [], accuracy = 15.0 ):
         self.wordInput = wordInput
@@ -191,69 +194,64 @@ class NameGen:
         
         return newWord
     
-    @classmethod
-    def help( self ):
-        print "The format of input must be words in a list, with an optional frequency value given with the word separated by a comma."
-        print "    eg. ['Abbey','Abbie','Abby',...] or ['Abbey,100','Abbie,86','Abby,284',...]"
-        print "If you have a CSV file, use NameGen( link to file ).readFile() to convert it to a suitable list."
-        print
-        print "Process the words using NameGen( wordList ).buildDictionary()"
-        print "    The first result of the output list [0] is the letter data, and the second [1] is the length data."
-        print "Get invalid combinatinons from NameGen( wordList ).invalidCombinations( depth )"
-        print "    Depth is the size of combinations to check for and is 3 by default."
-        print "Choose a random length based on the input words from NameGen().chooseLength( lengthData )"
-        print "Build a word from NameGen().buildWord( length, letterData, invalidCombinations )"
+    def build( self, depth = 3 ):
+        
+        #Fix for if someone inputs a filename
+        if type( self.wordInput ) not in [set, list]:
+            try:
+                wordInput = self.readFile()
+                return NameGen( wordInput ).build( depth )
+            except:
+                return None
+            
+        try:
+            depth = int( depth )
+        except:
+            depth = 2
+        
+        #Check input doesn't exist in cache
+        inputHash = md5.new()
+        inputHash.update( str( self.wordInput ) )
+        inputHash = inputHash.hexdigest()
+        
+        if os.path.exists( self.cachePath ):
+            try:
+                with open( self.cachePath, "r") as f:
+                    textFileData = self.decodeData( f.read() )
+            except:
+                textFileData = {}
+            textFile = open( self.cachePath, "r+")
+        else:
+            textFileData = {}
+            textFile = open( self.cachePath, "w")
+        
+        invalidCombinations = {}
+        if inputHash not in textFileData.keys():
+            letterData, lengthData = NameGen( self.wordList ).buildDictionary()
+            invalidCombinations[depth] = NameGen( self.wordList ).invalidCombinations( depth )
+        
+        elif depth not in textFileData[inputHash][2].keys():
+            letterData, lengthData = textFileData[inputHash][:2]
+            invalidCombinations = textFileData[inputHash][2]
+            invalidCombinations[depth] = NameGen( self.wordList ).invalidCombinations( depth )
+        
+        else:
+            letterData, lengthData = textFileData[inputHash][:2]
+            invalidCombinations = textFileData[inputHash][2]
+                
 
-
-#FIRST NAME
-wordData1 = NameGen( "C:/Code/CSV_Database_of_First_Names.csv" ).readFile()    
-try:
-    rebuiltList = False
-    if wordInputHash1 != zlib.crc32( str( wordData1 ) ) or not all( [letterData1, lengthData1] ):
-        raise ValueError()
-except:
-    rebuiltList = True
-    wordInputHash1 = zlib.crc32( str( wordData1 ) )
+        textFileData[inputHash] = [letterData, lengthData, invalidCombinations]
+        
+        textFile.write( self.encodeData( textFileData ) )
+        textFile.close()
+        
+        newWordLength = self.chooseLength( lengthData )
+        return self.buildWord( newWordLength, letterData, invalidCombinations[depth] )
     
-    processedWords = NameGen( wordData1 ).buildDictionary()
-    letterData1 = processedWords[0]
-    lengthData1 = processedWords[1]
-
-invalidCombinationDepth = 3
-try:
-    if ( lastDepth1 != invalidCombinationDepth or rebuiltList ) or not invalidWords1:
-        raise ValueError()
-except:
-    invalidWords1 = NameGen( wordData1 ).invalidCombinations( invalidCombinationDepth )
-    lastDepth1 = invalidCombinationDepth
-
-newWordLength1 = NameGen().chooseLength( lengthData1 )
-firstName = NameGen().buildWord( newWordLength1, letterData1, invalidWords1 ).title()
-
-#SECOND NAME
-
-wordData2 = NameGen( "C:/Code/CSV_Database_of_Last_Names.csv" ).readFile()    
-try:
-    rebuiltList = False
-    if wordInputHash2 != zlib.crc32( str( wordData2 ) ) or not all( [letterData2, lengthData2] ):
-        raise ValueError()
-except:
-    rebuiltList = True
-    wordInputHash2 = zlib.crc32( str( wordData2 ) )
+    def encodeData( self, input ):
+        return zlib.compress( cPickle.dumps( input ) )
     
-    processedWords = NameGen( wordData2 ).buildDictionary()
-    letterData2 = processedWords[0]
-    lengthData2 = processedWords[1]
-
-invalidCombinationDepth = 3
-try:
-    if ( lastDepth2 != invalidCombinationDepth or rebuiltList ) or not invalidWords2:
-        raise ValueError()
-except:
-    invalidWords2 = NameGen( wordData2 ).invalidCombinations( invalidCombinationDepth )
-    lastDepth2 = invalidCombinationDepth
-
-newWordLength2 = NameGen().chooseLength( lengthData2 )
-lastName = NameGen().buildWord( newWordLength2, letterData2, invalidWords2 ).title()
-
-print firstName, lastName
+    def decodeData( self, input ):
+        return cPickle.loads( zlib.decompress( input ) )
+ 
+print " ".join( [NameGen( "C:/Code/CSV_Database_of_First_Names.csv" ).build(), NameGen( "C:/Code/CSV_Database_of_Last_Names.csv" ).build()] ).title()
