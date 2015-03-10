@@ -1,19 +1,22 @@
 def editDictionary( dictionaryName, listOfValues, canOverwriteKeys=True ):
     reducedDictionary = dictionaryName
-    for i in valueList[:-2]:
-        if type( reducedDictionary ) != dict:
+    for i in listOfValues[:-2]:
+        if type( reducedDictionary ) != dict and canOverwriteKeys:
             reducedDictionary = {}
         try:
-            if reducedDictionary.get( i, False ) == False:
-                raise ValueError()
+            if reducedDictionary.get( i, None ) == None:
+                canOverwriteKeys = True
+                raise EditError()
             elif type( reducedDictionary[i] ) != dict:
-                if not canOverwriteKeys:
-                    return
-                raise KeyError()
-        except( ValueError, KeyError ):
+                raise EditError()
+        except EditError:
             reducedDictionary[i] = {}
         except:
             print "Something went wrong"
             return
         reducedDictionary = reducedDictionary[i]
-    reducedDictionary[valueList[-2]] = valueList[-1]
+    if canOverwriteKeys or ( not canOverwriteKeys and not reducedDictionary.get( listOfValues[-2], None ) ):
+        reducedDictionary[listOfValues[-2]] = listOfValues[-1]
+        return True
+    else:
+        return False
