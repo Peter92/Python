@@ -1,3 +1,5 @@
+class EditError( Exception ):
+    pass
 def editDictionary( dictionaryName, listOfValues, canOverwriteKeys=True ):
     reducedDictionary = dictionaryName
     for i in listOfValues[:-2]:
