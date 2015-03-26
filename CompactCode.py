@@ -1,10 +1,11 @@
 import operator
-def compactCode(input='',groupLines=None):
+def compactCode(input='',groupLines=None,changeIndents=4,indentLevel=4):
     if groupLines not in(False, None)and type(groupLines)not in(int, float): groupLines=50
     input=input.replace('"""',"'''").split("'''");input=''.join(input[::2]);
     loopNames=set(i+j for i in ('for','if','while','return','try','except','else','finally','elif','class','def','with') for j in (" ","(",":"))
     input = input.replace('\\','\\\\').replace('\r\n','\\r\\n')
     removeSpace=list('+-*/=!<>%,.()[]{}:');outputList=[];inLineTextMarker=";txt.{};";textSymbols=["'",'"']
+    indentMultiplier=float(changeIndents)/indentLevel
     for line in str(input).split('\n'):
         #Remove comments
         line=line.split("#")[0]
@@ -77,6 +78,6 @@ def compactCode(input='',groupLines=None):
                             if all(x not in line[:8] for x in loopNames) and all(x not in line for x in ('@staticmethod','@classmethod')):
                                 line=lastLineStripped+';'+line
                                 outputList.pop(-1)
-            line=' '*leadingSpace+line
+            line=' '*int(leadingSpace*indentMultiplier)+line
             outputList.append(line.rstrip())
     return '\r\n'.join(outputList)
