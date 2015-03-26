@@ -15,9 +15,15 @@ def compactCode(input='',groupMaxSpaces=None,changeIndents=4,indentLevel=4,**kwa
             groupMaxSpaces=-1
             changeIndents=1
     
+    #If text should also be affected
+    ignoreText = False
+    try:
+        ignoreText=kwargs["ignoreText"]
+    except:
+        pass
+    
     #Remove all triple quoted comments
     input=input.replace('"""',"'''").split("'''");input=''.join(input[::2]);
-    
     
     possibleSuffixes=list("( :")
     #Conditions that may have their contents on the same line
@@ -29,10 +35,13 @@ def compactCode(input='',groupMaxSpaces=None,changeIndents=4,indentLevel=4,**kwa
     removeSpace=list('+-*/=!<>%,.()[]{}:')        #These items will have all spaces next to them removed
     inLineTextMarker=";txt.{};"
     textSymbols=["'",'"']        #Add to this to preserve text if text is defined by anything other than quotation marks and speech marks
+    if ignoreText: 
+        removeSpace+=textSymbols
+        textSymbols=[]
     indentMultiplier=float(changeIndents)/indentLevel
     outputList=[]
     
-    for line in str(input).split('\n')+['end']:
+    for line in str(input).split('\n')+[';endoflist;']:
         
         #Remove comments
         line=line.split("#")[0]
@@ -103,7 +112,7 @@ def compactCode(input='',groupMaxSpaces=None,changeIndents=4,indentLevel=4,**kwa
                     lastLine = outputList[-1]
                 except:
                     pass
-                if lastLine:
+                if lastLine and stripLine!=';endoflist;':
                     lastLineLength = len(lastLine)
                     lastLineStripped = lastLine.lstrip()
                     lastLineStrippedLength = len(lastLineStripped)
@@ -133,9 +142,9 @@ def compactCode(input='',groupMaxSpaces=None,changeIndents=4,indentLevel=4,**kwa
                             if any(x in twoLinesAgoStrip[:7] for x in groupableNames) and all(x not in oneLineAgoStrip[:7] for x in groupableNames):
                                 outputList[-2] = twoLinesAgo+oneLineAgoStrip
                                 outputList.pop(-1)
-                                
+            
             #Add the indent and repeat
             line=' '*leadingSpace+stripLine
             outputList.append(line.rstrip())
-            
+    
     return '\r\n'.join(outputList[:-1])
