@@ -1,40 +1,66 @@
 import operator
-def compactCode(input='',groupLines=None,changeIndents=4,indentLevel=4,**kwargs):
-    if groupLines not in(False, None)and type(groupLines)not in(int, float): groupLines=50
-    try:maxEfficiency=kwargs["max"]
-    except:pass
+def compactCode(input='',groupMaxSpaces=None,changeIndents=4,indentLevel=4,**kwargs):
+    
+    #Check that grouping is not disabled, and set to 50 if it is not a number
+    if groupMaxSpaces not in (False, None) and type(groupMaxSpaces) not in (int, float): 
+        groupMaxSpaces=50
+        
+    #Auto set variables to the best efficiency if 'max' is given
+    try:
+        maxEfficiency=kwargs["max"]
+    except:
+        pass
     else:
-        if maxEfficiency:groupLines=-1;changeIndents=1
+        if maxEfficiency:
+            groupMaxSpaces=-1
+            changeIndents=1
+    
+    #Remove all triple quoted comments
     input=input.replace('"""',"'''").split("'''");input=''.join(input[::2]);
-    #Loops that may have the contents on the same line
-    ifNames=set(i+j for i in ('if','else','elif','try','except','finally','for','with') for j in (" ","(",":"))
-    #Things that may not be grouped on above lines
-    loopNames=set(i+j for i in ('while','return','class','def') for j in (" ","(",":"))|ifNames
+    
+    
+    possibleSuffixes=list("( :")
+    #Conditions that may have their contents on the same line
+    groupableNames=set(i+j for i in ('if','else','elif','try','except','finally','for','with','while') for j in possibleSuffixes)
+    #Conditions which can't be moved up a line
+    fixedNames={x:len(x) for x in set(i+j for i in ('class','def') for j in possibleSuffixes)|groupableNames|{'@staticmethod','@classmethod'}}
+    
     input = input.replace('\\','\\\\').replace('\r\n','\\r\\n')
-    removeSpace=list('+-*/=!<>%,.()[]{}:');outputList=[];inLineTextMarker=";txt.{};";textSymbols=["'",'"']
+    removeSpace=list('+-*/=!<>%,.()[]{}:')        #These items will have all spaces next to them removed
+    inLineTextMarker=";txt.{};"
+    textSymbols=["'",'"']        #Add to this to preserve text if text is defined by anything other than quotation marks and speech marks
     indentMultiplier=float(changeIndents)/indentLevel
+    outputList=[]
+    
     for line in str(input).split('\n')+['end']:
+        
         #Remove comments
         line=line.split("#")[0]
-        #Don't affect text
+        
+        #Replace text as to avoid it being affected
         textStorage={}
         lastSymbolFail=None
+        
+        #Loop until all text is replaced
         while True:
-            #Find the earliest symbol
+            
+            #Find the first symbol
             symbolOccurrances={}
             for symbol in textSymbols:
                 placeOfOccurrance = line.find(symbol)
+                #Only add to dictionary if there is more than one symbol
                 if placeOfOccurrance >= 0 and line.count(symbol)>1:
                     symbolOccurrances[symbol]=placeOfOccurrance
-            try:symbol=sorted(symbolOccurrances.items(),key=operator.itemgetter(1))[0][0]
-            except:break
+                    
+            #Get the first occurance, or break loop if there is none
+            try:
+                symbol=sorted(symbolOccurrances.items(),key=operator.itemgetter(1))[0][0]
+            except:
+                break
             textStorage[symbol]=[]
-            ignoreSymbol=False
-            #Make sure there is not only 1 of those symbols left
-            if line.count(symbol)%2==1:
-                ignoreSymbol=True
+            
             #Replace the text so it won't be cut down later
-            while symbol in line and (not ignoreSymbol or line.count(symbol)>1):
+            while symbol in line:
                 splitByText=line.split(symbol,1)
                 line=splitByText[0]+inLineTextMarker
                 if symbol in splitByText[1]:
@@ -45,29 +71,33 @@ def compactCode(input='',groupLines=None,changeIndents=4,indentLevel=4,**kwargs)
                     line+=splitByText[1]
                     break
             line=line.replace(inLineTextMarker,inLineTextMarker.format(ord(symbol)))
+            
         #Remove double spaces
         stripLine=line.lstrip(' ')
         leadingSpace=int((len(line)-len(stripLine))*indentMultiplier)
         while '  ' in stripLine:
             stripLine=stripLine.replace('  ',' ')
-        line = stripLine
+        
         if stripLine:
+            
             #Remove unnecessary spaces
             for i in removeSpace:
-                line=line.replace(' '+i,i).replace(i+' ',i)
-            #Replace the text
+                stripLine=stripLine.replace(' '+i,i).replace(i+' ',i)
+                
+            #Replace the text markers with the actual text again
             while True:
                 resultsExist={symbol:True for symbol in textSymbols}
                 for symbol in textSymbols:
                     currentTextMarker=inLineTextMarker.format(ord(symbol))
-                    while currentTextMarker in line:
-                        line=line.replace(currentTextMarker,symbol+textStorage[symbol].pop(0)+symbol,1)
-                    if currentTextMarker not in line:
+                    while currentTextMarker in stripLine:
+                        stripLine=stripLine.replace(currentTextMarker,symbol+textStorage[symbol].pop(0)+symbol,1)
+                    if currentTextMarker not in stripLine:
                         resultsExist[symbol]=False
-                if not any(x in line for x in (inLineTextMarker.format(ord(symbol)) for symbol in textSymbols)):
+                if not any(x in stripLine for x in (inLineTextMarker.format(ord(symbol)) for symbol in textSymbols)):
                     break
+                    
             #Group together lines
-            if groupLines:
+            if groupMaxSpaces:
                 lastLine=None
                 try:
                     lastLine = outputList[-1]
@@ -79,13 +109,14 @@ def compactCode(input='',groupLines=None,changeIndents=4,indentLevel=4,**kwargs)
                     lastLineStrippedLength = len(lastLineStripped)
                     lastIndent = lastLineLength-lastLineStrippedLength
                     lastLength = lastLineStrippedLength
-                    #Make sure it is of the same indent, and doesn't mark the start of a loop
+                    #Make sure the last space is of the same indent, and doesn't mark the start of a loop
                     if leadingSpace == lastIndent:
-                        if lastLineStrippedLength+len(line)<groupLines or groupLines<0:
-                            if all(x not in line[:8] for x in loopNames) and all(x not in line for x in ('@staticmethod','@classmethod')):
-                                line=lastLineStripped+';'+line
+                        if lastLineStrippedLength+len(stripLine)<groupMaxSpaces or groupMaxSpaces<0:
+                            if all(x not in stripLine[:y] for x, y in fixedNames.iteritems()):
+                                stripLine=lastLineStripped+';'+stripLine
                                 outputList.pop(-1)
-                #Group the if, else, try and except statements
+                                
+                #Group to the conditional statements
                 oneLineAgo,twoLinesAgo=None,None
                 try:
                     twoLinesAgo,oneLineAgo=outputList[-2:]
@@ -99,9 +130,12 @@ def compactCode(input='',groupLines=None,changeIndents=4,indentLevel=4,**kwargs)
                     if leadingSpace<oneLineAgoIndentLevel:
                         if int(oneLineAgoIndentLevel-indentLevel*indentMultiplier)==len(twoLinesAgo)-len(twoLinesAgoStrip):
                             #Make sure 2 lines ago was a statement, but the latest line wasn't
-                            if any(x in twoLinesAgoStrip[:7] for x in ifNames) and all(x not in oneLineAgoStrip[:7] for x in ifNames):
+                            if any(x in twoLinesAgoStrip[:7] for x in groupableNames) and all(x not in oneLineAgoStrip[:7] for x in groupableNames):
                                 outputList[-2] = twoLinesAgo+oneLineAgoStrip
                                 outputList.pop(-1)
-            line=' '*leadingSpace+line
+                                
+            #Add the indent and repeat
+            line=' '*leadingSpace+stripLine
             outputList.append(line.rstrip())
+            
     return '\r\n'.join(outputList[:-1])
