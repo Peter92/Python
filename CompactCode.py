@@ -18,16 +18,16 @@ def compactCode(input='',groupLines=None,changeIndents=4,indentLevel=4,**kwargs)
         line=line.split("#")[0]
         #Don't affect text
         textStorage={}
+        lastSymbolFail=None
         while True:
             #Find the earliest symbol
             symbolOccurrances={}
             for symbol in textSymbols:
-                numOccurrances = line.find(symbol)
-                if numOccurrances >= 0:
-                    symbolOccurrances[symbol]=numOccurrances
+                placeOfOccurrance = line.find(symbol)
+                if placeOfOccurrance >= 0 and line.count(symbol)>1:
+                    symbolOccurrances[symbol]=placeOfOccurrance
             try:symbol=sorted(symbolOccurrances.items(),key=operator.itemgetter(1))[0][0]
             except:break
-            if len(symbolOccurrances.items())==1 and line.count(symbol)==1:break
             textStorage[symbol]=[]
             ignoreSymbol=False
             #Make sure there is not only 1 of those symbols left
