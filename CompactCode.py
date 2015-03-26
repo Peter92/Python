@@ -1,12 +1,19 @@
 import operator
-def compactCode(input='',groupLines=None,changeIndents=4,indentLevel=4):
+def compactCode(input='',groupLines=None,changeIndents=4,indentLevel=4,**kwargs):
     if groupLines not in(False, None)and type(groupLines)not in(int, float): groupLines=50
+    try:maxEfficiency=kwargs["max"]
+    except:pass
+    else:
+        if maxEfficiency:groupLines=-1;changeIndents=1
     input=input.replace('"""',"'''").split("'''");input=''.join(input[::2]);
-    loopNames=set(i+j for i in ('for','if','while','return','try','except','else','finally','elif','class','def','with') for j in (" ","(",":"))
+    #Loops that may have the contents on the same line
+    ifNames=set(i+j for i in ('if','else','elif','try','except','finally','for','with') for j in (" ","(",":"))
+    #Things that may not be grouped on above lines
+    loopNames=set(i+j for i in ('while','return','class','def') for j in (" ","(",":"))|ifNames
     input = input.replace('\\','\\\\').replace('\r\n','\\r\\n')
     removeSpace=list('+-*/=!<>%,.()[]{}:');outputList=[];inLineTextMarker=";txt.{};";textSymbols=["'",'"']
     indentMultiplier=float(changeIndents)/indentLevel
-    for line in str(input).split('\n'):
+    for line in str(input).split('\n')+['end']:
         #Remove comments
         line=line.split("#")[0]
         #Don't affect text
@@ -40,7 +47,7 @@ def compactCode(input='',groupLines=None,changeIndents=4,indentLevel=4):
             line=line.replace(inLineTextMarker,inLineTextMarker.format(ord(symbol)))
         #Remove double spaces
         stripLine=line.lstrip(' ')
-        leadingSpace=len(line)-len(stripLine)
+        leadingSpace=int((len(line)-len(stripLine))*indentMultiplier)
         while '  ' in stripLine:
             stripLine=stripLine.replace('  ',' ')
         line = stripLine
@@ -74,10 +81,27 @@ def compactCode(input='',groupLines=None,changeIndents=4,indentLevel=4):
                     lastLength = lastLineStrippedLength
                     #Make sure it is of the same indent, and doesn't mark the start of a loop
                     if leadingSpace == lastIndent:
-                        if lastLineStrippedLength+len(line)<groupLines:
+                        if lastLineStrippedLength+len(line)<groupLines or groupLines<0:
                             if all(x not in line[:8] for x in loopNames) and all(x not in line for x in ('@staticmethod','@classmethod')):
                                 line=lastLineStripped+';'+line
                                 outputList.pop(-1)
-            line=' '*int(leadingSpace*indentMultiplier)+line
+                #Group the if, else, try and except statements
+                oneLineAgo,twoLinesAgo=None,None
+                try:
+                    twoLinesAgo,oneLineAgo=outputList[-2:]
+                except:
+                    pass
+                if oneLineAgo and twoLinesAgo:
+                    oneLineAgoStrip=oneLineAgo.lstrip()
+                    twoLinesAgoStrip=twoLinesAgo.lstrip()
+                    oneLineAgoIndentLevel = len(oneLineAgo)-len(oneLineAgoStrip)
+                    #Check the current indent is less than the last line, and the last line indent is greater than the 2nd last line
+                    if leadingSpace<oneLineAgoIndentLevel:
+                        if int(oneLineAgoIndentLevel-indentLevel*indentMultiplier)==len(twoLinesAgo)-len(twoLinesAgoStrip):
+                            #Make sure 2 lines ago was a statement, but the latest line wasn't
+                            if any(x in twoLinesAgoStrip[:7] for x in ifNames) and all(x not in oneLineAgoStrip[:7] for x in ifNames):
+                                outputList[-2] = twoLinesAgo+oneLineAgoStrip
+                                outputList.pop(-1)
+            line=' '*leadingSpace+line
             outputList.append(line.rstrip())
-    return '\r\n'.join(outputList)
+    return '\r\n'.join(outputList[:-1])
