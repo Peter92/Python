@@ -40,12 +40,14 @@ class NewTuple:
     def rawOutput(self):
         """Format the output."""
         
-        argFormat = ('{}, '*(len(self.args)-1))
         if self.args and self.kwargs:
             comma = ', '
-            argFormat += '{}'
         else:
             comma = ''
+            
+        argFormat = ('{}, '*(len(self.args)-1))
+        if self.args or self.kwargs:
+            argFormat += '{}'
             
         #Return the class object name
         return '{r}({x}{c}{y})'.format(r=self.getClassName(), c=comma,
@@ -57,6 +59,7 @@ class NewTuple:
             args = self.args
         if kwargs is None:
             kwargs = self.kwargs
+            
         return self.getClassInstance()(*args, **kwargs)
     
     #Get indexes
@@ -306,12 +309,16 @@ class NewTuple:
             newArgs = self.args
             newKwargs = self.kwargs.copy()
             
-            for i in range(len(newArgs)):
-                newArgs[i] = newArgs[i]+other
-                
-            for key in newKwargs:
-                newKwargs[key] = newKwargs[key]+other
-        
+            if switch:
+                for i in range(len(newArgs)):
+                    newArgs[i] = operation(newArgs[i], other)
+                for key in newKwargs:
+                    newKwargs[key] = operation(newKwargs[key], other)
+            else:
+                for i in range(len(newArgs)):
+                    newArgs[i] = operation(newArgs[i], other)
+                for key in newKwargs:
+                    newKwargs[key] = operation(newKwargs[key], other)
         
         return self.output(newArgs, newKwargs)
     
@@ -342,19 +349,27 @@ class NewTuple:
     #Divison
     def opDiv(self, a, b):
         return a/b
-    def __mul__(self, other):
+    def __div__(self, other):
         return self.op(other, self.opDiv)
-    def __rmul__(self, other):
+    def __rdiv__(self, other):
         return self.op(other, self.opDiv, True)
         
     #Exponent
     def opPow(self, a, b):
         return a**b
-    def __mul__(self, other):
+    def __pow__(self, other):
         return self.op(other, self.opPow)
-    def __rmul__(self, other):
+    def __rpow__(self, other):
         return self.op(other, self.opPow, True)
 
+    #Modulo
+    def opMod(self, a, b):
+        return a%b
+    def __mod__(self, other):
+        return self.op(other, self.opMod)
+    def __rmod__(self, other):
+        return self.op(other, self.opMod, True)
+        
     #Absolute value (always positive)
     def __abs__(self):
         newArgs = self.args
