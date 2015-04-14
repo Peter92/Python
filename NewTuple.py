@@ -20,18 +20,22 @@ class NewTuple:
     >>> value + NewTuple(j=5)
     NewTuple(2, 5, x=2, j=5)
     """
+    notSetMarker = ':notset:'
     
     def __init__(self, *args, **kwargs):
         self.args = list( args )
         self.kwargs = kwargs
     
     def __repr__(self):
-        """Build class object."""
         return self.rawOutput()
+    
+    def getClassInstance(self):
+        """Return class instance."""
+        return globals()[self.getClassName()]
     
     def getClassName(self):
         """Return name of class."""
-        return globals()[self.__class__.__name__]
+        return self.__class__.__name__
     
     def rawOutput(self):
         """Format the output."""
@@ -53,8 +57,7 @@ class NewTuple:
             args = self.args
         if kwargs is None:
             kwargs = self.kwargs
-        print kwargs
-        return self.getClassName()(*args, **kwargs)
+        return self.getClassInstance()(*args, **kwargs)
     
     #Get indexes
     def __getitem__(self, item):
@@ -107,46 +110,69 @@ class NewTuple:
         c = stop
         """
         newArgs = self.values()[start:stop]
-        newKwargs = {}
         return self.output(newArgs, {})
     
     def __len__(self):
         return len(self.args)
     
-    """Dictionary commands"""
+    """DICTIONARY COMMANDS"""
     def argsToDict(self):
         """Build new dictionary containing args."""
         newDict = self.kwargs.copy()
         newDict.update({None: tuple(self.args)})
         return newDict
+        
     def keys(self):
         """Return dictionary keys."""
         return self.kwargs.keys()
+        
     def values(self):
-        """Return non dictionary values."""
+        """Return dictionary values."""
+        return self.kwargs.values()
+        
+    def getargs(self):
+        """Return args."""
         return self.args
+        
+    def getkwargs(self):
+        """Return kwargs."""
+        return self.kwargs
+        
     def allvalues(self):
         """Return both dictionary and non dictionary values."""
         return self.values() + self.kwargs.values()
+        
     def items(self):
         """Return all items as a dictionary."""
         newDict = self.argsToDict()
         return newDict.items()
+        
     def iteritems(self):
         """Iterator through dictionary (keys, values)."""
         return self.kwargs.iteritems()
+        
     def iterkeys(self):
         """Iterator through dictionary keys."""
         return self.kwargs.iterkeys()
+        
     def itervalues(self):
         """Iterator through dictionary values."""
         return self.kwargs.itervalues()
+        
     def has_key(self, key):
         """If the dictionary contains a key."""
         return self.kwargs.has_key(key)
-    def pop(self, key, optional=None):
+        
+    def get(self, key, optional=notSetMarker):
+        """Return a value of a key, or something else if it doesn't exist."""
+        if optional != self.notSetMarker:
+            return self.kwargs.get(key, optional)
+        else:
+            return self.kwargs.get(key)
+            
+    def pop(self, key, optional=notSetMarker):
         """Remove a key, and return something if it fails."""
-        if optional:
+        if optional != self.notSetMarker:
             return self.kwargs.pop(key, optional)
         else:
             return self.kwargs.pop(key)
@@ -155,11 +181,14 @@ class NewTuple:
         """Clear all values."""
         self.kwargs = {}
         self.args = {}
+        
     def cleardict(self):
         """Only clear dictionary values."""
         self.kwargs = {}
+        
     def clearvalues(self):
         """Only clear non dictionary values."""
+        self.args = {}
         
     def __delitem__(self, key):
         """Delete a dictionary key - (del a[b])"""
@@ -176,32 +205,31 @@ class NewTuple:
     def __setitem__(self, key, value):
         """Add a dictionary key - a[b]=c"""
         self.kwargs[key] = value
-        print self.kwargs
-        print self.args
     
+    """CONVERSION COMMANDS"""
     def int(self):
         """Try to convert all values to integers."""
-        self.args = tuple(int(float(x)) for x in self.args)
-        self.kwargs = {i[0]:int(float(i[1])) for i in self.kwargs.iteritems()}
-        return self.output()
+        newArgs = tuple(int(float(x)) for x in self.args)
+        newKwargs = {i[0]:int(float(i[1])) for i in self.kwargs.iteritems()}
+        return self.output(newArgs, newKwargs)
     def __int__(self):
         """Try to convert all values to integers and output the sum."""
         return sum(self.int().allvalues())
         
     def float(self):
         """Try to convert all values to floats."""
-        self.args = tuple(float(x) for x in self.args)
-        self.kwargs = {i[0]:float(i[1]) for i in self.kwargs.iteritems()}
-        return self.output()
+        newArgs = tuple(float(x) for x in self.args)
+        newKwargs = {i[0]:float(i[1]) for i in self.kwargs.iteritems()}
+        return self.output(newArgs, newKwargs)
     def __float__(self):
         """Try to convert all values to floats and output the sum."""
         return sum(self.float().allvalues())
         
     def str(self):
         """Try to convert all values to strings."""
-        self.args = tuple(str(x) for x in self.args)
-        self.kwargs = {i[0]:str(i[1]) for i in self.kwargs.iteritems()}
-        return self.output()
+        newArgs = tuple(str(x) for x in self.args)
+        newKwargs = {i[0]:str(i[1]) for i in self.kwargs.iteritems()}
+        return self.output(newArgs, newKwargs)
     def __str__(self):
         """Try to convert all values to strings and output a formatted string."""
         return self.str().rawOutput()[len(str(self.getClassName()))+1:-1]
@@ -212,3 +240,125 @@ class NewTuple:
     def tuple(self):
         """Return all values as tuple."""
         return tuple(self.allValues())
+    def dict(self):
+        return self.argsToDict()
+    
+    
+    """OPERATOR COMMANDS"""
+    def joinTwoLists(self, list1, list2, operation, switch=False):
+        
+        #Get the longest argument list to avoid index problems
+        if len(list1) > len(list2):
+            argsL = list(list1)
+            argsS = list(list2)
+        else:
+            argsL = list(list2)
+            argsS = list(list1)
+        
+        if switch:
+            for i in range(len(argsS)):
+                argsL[i] = operation(list2[i], list1[i])
+        else:
+            for i in range(len(argsS)):
+                argsL[i] = operation(list1[i], list2[i])
+        
+        return argsL
+    
+    def joinTwoDicts(self, dict1, dict2, operation, switch=False):
+        
+        #Loop through the dictionary values
+        newDict = dict1.copy()
+        if switch:
+            for i in dict2.keys():
+                originalValue = newDict.get(i, None)
+                if originalValue is not None:
+                    newDict[i] = operation(dict2[i], newDict[i])
+                else:
+                    newDict[i] = dict2[i]
+        else:
+            for i in dict2.keys():
+                originalValue = newDict.get(i, None)
+                if originalValue is not None:
+                    newDict[i] = operation(newDict[i], dict2[i])
+                else:
+                    newDict[i] = dict2[i]
+        return newDict
+                
+    def op(self, other, operation, switch=False):
+        
+        #If it is a NewTuple value
+        if isinstance( other, self.getClassInstance() ):
+            newKwargs = self.joinTwoDicts(self.kwargs, other, operation, switch)
+            newArgs = self.joinTwoLists(self.args, other.getargs(), operation, switch)
+            
+        #If it is a list or tuple
+        elif isinstance(other, (tuple, list)):
+            newArgs = self.joinTwoLists(self.args, other, operation, switch)
+            newKwargs = self.kwargs
+        
+        #If it is a dictionary
+        elif isinstance(other, dict):
+            newArgs = self.args
+            newKwargs = self.joinTwoDicts(self.kwargs, other, operation, switch)
+            
+        #If it is something like a letter or number
+        else:
+            newArgs = self.args
+            newKwargs = self.kwargs.copy()
+            
+            for i in range(len(newArgs)):
+                newArgs[i] = newArgs[i]+other
+                
+            for key in newKwargs:
+                newKwargs[key] = newKwargs[key]+other
+        
+        
+        return self.output(newArgs, newKwargs)
+    
+    #Addition
+    def opAdd(self, a, b):
+        return a+b
+    def __add__(self, other):
+        return self.op(other, self.opAdd)
+    def __radd__(self, other):
+        return self.op(other, self.opAdd, True)
+    
+    #Subtraction
+    def opSub(self, a, b):
+        return a-b
+    def __sub__(self, other):
+        return self.op(other, self.opSub)
+    def __rsub__(self, other):
+        return self.op(other, self.opSub, True)
+        
+    #Multiplication
+    def opMul(self, a, b):
+        return a*b
+    def __mul__(self, other):
+        return self.op(other, self.opMul)
+    def __rmul__(self, other):
+        return self.op(other, self.opMul, True)
+        
+    #Divison
+    def opDiv(self, a, b):
+        return a/b
+    def __mul__(self, other):
+        return self.op(other, self.opDiv)
+    def __rmul__(self, other):
+        return self.op(other, self.opDiv, True)
+        
+    #Exponent
+    def opPow(self, a, b):
+        return a**b
+    def __mul__(self, other):
+        return self.op(other, self.opPow)
+    def __rmul__(self, other):
+        return self.op(other, self.opPow, True)
+
+    #Absolute value (always positive)
+    def __abs__(self):
+        newArgs = self.args
+        newKwargs = self.kwargs.copy()
+        newArgs = [abs(i) for i in newArgs]
+        newKwargs = {i[0]:abs(i[1]) for i in newKwargs.iteritems()}
+        return self.output(newArgs, newKwargs)
