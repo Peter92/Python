@@ -1,0 +1,87 @@
+from decimal import Decimal
+number_list = {}
+number_list[0] = ''
+number_list[2] = 'hundred'
+number_list[3] = 'thousand'
+number_list[6] = 'million'
+number_list[9] = 'billion'
+number_list[12] = 'trillion'
+number_list[15] = 'quadrillion'
+number_list[18] = 'quintillion'
+number_list[21] = 'sextillion'
+number_list[24] = 'septillion'
+number_list[27] = 'octillion'
+number_list[30] = 'nonillion'
+number_level_0 = ['', 'un', 'duo', 'tre', 'quattor', 'quin', 'sex', 'septen', 'octo', 'nonvem']
+number_level_1 = ['', 'dec', 'vig', 'trig', 'quadrag', 'quinquag', 'sexag', 'septuag', 'octog', 'nonag'] #+int
+number_level_2 = ['', 'cen', 'duocen', 'trecen', 'quadringen', 'quingen', 'sescen', 'septingen', 'octingen', 'nongen'] #+t
+number_level_3 = ['', 'milli']
+current_position = 33
+for l in xrange(len(number_level_3)):
+    level3 = str(number_level_3[l])
+    for k in xrange(len(number_level_2)):
+        level2 = str(number_level_2[k])
+        if k:
+            level2 += 't'
+        for j in xrange(len(number_level_1)):
+            if j or k or l:
+                level1 = str(number_level_1[j])
+                if j > 1:
+                    level1 += 'int'
+                for i in xrange(len(number_level_0)):
+                    level0 = str(number_level_0[i])
+                    if l == 1 and not k and not j:
+                        level2 += 'n'
+                    number_list[current_position] = level3+level0+level1+level2+'illion'
+                    current_position += 3
+for i in number_list.keys():
+    if i and 'illion' in number_list[i]:
+        number_list[-i] = number_list[i]+'th'
+
+
+#Set when to use the next name in list
+min_amount = 1
+num_decimals = 2
+force_decimals = True
+
+min_offset = Decimal(str(min_amount)).logb()
+
+#Input
+input = 10**100
+input_converted = Decimal(str(input))
+num_digits = Decimal(str(input_converted)).logb() - min_offset
+
+#Figure which name to use
+all_available_numbers = sorted(number_list.keys())
+for i in xrange(len(all_available_numbers)):
+    try:
+        if num_digits < all_available_numbers[i+1]:
+            break
+    #If number is higher than max index
+    except IndexError:
+        break
+num_exp = all_available_numbers[i]
+
+#Calculate name
+num_suffix = number_list[num_exp]
+if num_suffix:
+    num_suffix = ' ' + num_suffix
+if num_exp < 0:
+    num_suffix += 's'
+
+
+num_prefix = input_converted/pow(Decimal(10), Decimal(num_exp))
+rounded_prefix = str(round(num_prefix, num_decimals))
+if force_decimals:
+    if '.' not in rounded_prefix:
+        rounded_prefix += '.'+'0'*num_decimals
+    else:
+        current_decimals = len(rounded_prefix.split('.')[1])
+        rounded_prefix += '0'*(num_decimals-current_decimals)
+        
+else:
+    if rounded_prefix[-2:] == '.0':
+        rounded_prefix = rounded_prefix[:-2]
+
+
+print str(rounded_prefix) + num_suffix
