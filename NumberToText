@@ -1,87 +1,198 @@
-from decimal import Decimal
-number_list = {}
-number_list[0] = ''
-number_list[2] = 'hundred'
-number_list[3] = 'thousand'
-number_list[6] = 'million'
-number_list[9] = 'billion'
-number_list[12] = 'trillion'
-number_list[15] = 'quadrillion'
-number_list[18] = 'quintillion'
-number_list[21] = 'sextillion'
-number_list[24] = 'septillion'
-number_list[27] = 'octillion'
-number_list[30] = 'nonillion'
-number_level_0 = ['', 'un', 'duo', 'tre', 'quattor', 'quin', 'sex', 'septen', 'octo', 'nonvem']
-number_level_1 = ['', 'dec', 'vig', 'trig', 'quadrag', 'quinquag', 'sexag', 'septuag', 'octog', 'nonag'] #+int
-number_level_2 = ['', 'cen', 'duocen', 'trecen', 'quadringen', 'quingen', 'sescen', 'septingen', 'octingen', 'nongen'] #+t
-number_level_3 = ['', 'milli']
-current_position = 33
-for l in xrange(len(number_level_3)):
-    level3 = str(number_level_3[l])
-    for k in xrange(len(number_level_2)):
-        level2 = str(number_level_2[k])
-        if k:
-            level2 += 't'
-        for j in xrange(len(number_level_1)):
-            if j or k or l:
-                level1 = str(number_level_1[j])
-                if j > 1:
-                    level1 += 'int'
-                for i in xrange(len(number_level_0)):
-                    level0 = str(number_level_0[i])
-                    if l == 1 and not k and not j:
-                        level2 += 'n'
-                    number_list[current_position] = level3+level0+level1+level2+'illion'
-                    current_position += 3
-for i in number_list.keys():
-    if i and 'illion' in number_list[i]:
-        number_list[-i] = number_list[i]+'th'
+from decimal import Decimal, getcontext
+class NumberNames:
+    num_units = ['zero','one','two','three','four','five','six','seven','eight','nine']
+    num_teens = ['ten','eleven','twelve']+[i+'teen' for i in ['thir','four','fif']+num_units[6:]]
+    num_tens = [i+('ty' if i[-1]!='t' else 'y') for i in ['twen','thir','for','fif']+num_units[6:]]
+    
+    num_exp_prefix = ['', 'un','duo','tre','quattor','quin','sex','septen','octo','novem']
+    num_exp_amount = ['']+[i+'int' for i in ['vig','trig','quadrag','quinquag','sexag','septuag','octog','nonag']]
+    
+    num_exp_units = [i+'illion' for i in ['m','b','tr','quadr','quint','sext','sept','oct','non']]
+    num_exp_tens = [j+'illion' for j in ['dec']+num_exp_amount[1:]]
+    num_exp_hundreds = ['']+[i+'en' for i in ['c','duoc','trec','quadring','quing','sesc','septing','octing','nong']]
+
+
+
+num_dict = {}
+num_dict[2] = 'hundred'
+num_dict[3] = 'thousand'
+
+#Million through Nonillion
+exp_current = 6
+for i in NumberNames.num_exp_units:
+    num_dict[exp_current] = i
+    exp_current += 3
+    
+#Iterate through exponential hundreds (cen+)
+for prefix_hundreds in NumberNames.num_exp_hundreds:
+    #Iterate through exponential tens (decillion+)
+    for prefix_tens in NumberNames.num_exp_tens:
+        #Iterate through exponential amounts (un, duo, tre, etc)
+        for prefix in NumberNames.num_exp_prefix:
+            num_dict[exp_current] = prefix_hundreds+prefix+prefix_tens
+            exp_current += 3
+    
+    #Add tillion after the first run
+    if not prefix_hundreds:
+        NumberNames.num_exp_tens = ['tillion']+NumberNames.num_exp_tens
+
+#Add decimal amounts
+for i in num_dict.keys():
+    if i != 3:
+        num_dict[-i] = num_dict[i]+'th'
+    else:
+        num_dict[-i] = num_dict[i][:-1]+'th'
+
+#Add zero
+num_dict[0] = ''
+
+def remove_exponent(d):
+    '''Remove exponent and trailing zeros.
+
+    >>> remove_exponent(Decimal('5E+3'))
+    Decimal('5000')
+
+    '''
+    return d.quantize(Decimal(1)) if d == d.to_integral() else d.normalize()
+ 
+def num_to_text(input):
+    """Convert number between 0 and 999 to text"""
+    
+    negative_num = False
+    
+    if '.' in str(input):
+        input = float(input)
+    else:
+        input = int(input)
+    positive_num = abs(input)
+    if input != positive_num:
+        negative_num = True
+    
+    output_hundreds = int(positive_num/100)
+    output_tens = int((positive_num%100)/10)
+    output_units = int(positive_num%10)
+    output_decimals = str(positive_num).split('.')
+    
+    output_text = ''
+    if negative_num:
+        output_text += 'minus '
+    if output_hundreds:
+        output_text += NumberNames.num_units[output_hundreds] + ' hundred'
+    if output_tens:
+        if output_hundreds:
+            output_text += ' and '
+        if output_tens != 1:
+            output_text += NumberNames.num_tens[output_tens-2]
+    if output_units:
+        if output_tens == 1:
+            output_text += NumberNames.num_teens[output_units]
+        else:
+            if output_tens:
+                output_text += '-'
+            elif output_hundreds:
+                output_text += ' and '
+            output_text += NumberNames.num_units[output_units]
+    if not (output_hundreds or output_tens or output_units):
+        output_text += NumberNames.num_units[output_units]
+    if len(output_decimals)-1:
+        output_text += ' point'
+        for i in output_decimals[1]:
+            output_text += ' '+NumberNames.num_units[int(i)]
+    
+    return output_text
+  
+def find_matching_exp(input, all_available_numbers):
+    """Iterate through list of numbers to find the lowest match."""
+    for i in xrange(len(all_available_numbers)):
+        try:
+            if num_digits < all_available_numbers[i+1]:
+                return all_available_numbers[i]
+        #If number is higher than max index
+        except IndexError:
+            return all_available_numbers[i]
+              
+           
+input = "1426426426514999999926426426553114264264265531531.75"
+
+getcontext().prec = len(str(input))
+
 
 
 #Set when to use the next name in list
+display_full_name = True
+
 min_amount = 1
 num_decimals = 2
 force_decimals = True
 
 min_offset = Decimal(str(min_amount)).logb()
 
-#Input
-input = 10**100
-input_converted = Decimal(str(input))
-num_digits = Decimal(str(input_converted)).logb() - min_offset
-
-#Figure which name to use
-all_available_numbers = sorted(number_list.keys())
-for i in xrange(len(all_available_numbers)):
-    try:
-        if num_digits < all_available_numbers[i+1]:
-            break
-    #If number is higher than max index
-    except IndexError:
-        break
-num_exp = all_available_numbers[i]
-
-#Calculate name
-num_suffix = number_list[num_exp]
-if num_suffix:
-    num_suffix = ' ' + num_suffix
-if num_exp < 0:
-    num_suffix += 's'
-
-
-num_prefix = input_converted/pow(Decimal(10), Decimal(num_exp))
-rounded_prefix = str(round(num_prefix, num_decimals))
-if force_decimals:
-    if '.' not in rounded_prefix:
-        rounded_prefix += '.'+'0'*num_decimals
-    else:
-        current_decimals = len(rounded_prefix.split('.')[1])
-        rounded_prefix += '0'*(num_decimals-current_decimals)
+   
+#Format input
+input = str(input).replace(" ","").replace("\n","")
+input = Decimal(str(input))
+all_available_numbers = tuple(sorted(num_dict.keys()))
+if display_full_name:
+    
+    num_output = {}
+    num_exp = 1
+    
+    while num_exp > 0:
         
+        #Figure which name to use
+        num_digits = Decimal(str(input)).logb()
+        num_exp = find_matching_exp(num_digits, all_available_numbers)
+        
+        #Get matching amount 
+        current_multiplier = pow(Decimal(10), Decimal(num_exp))
+        current_output = input/current_multiplier
+        
+        #Add to output
+        if num_exp:
+            num_output[num_exp] = (str(current_output).split('.')[0])
+            input = input%pow(Decimal(10), Decimal(num_exp))
+        else:
+            num_output[num_exp] = input
+    
+    num_name = []
+    num_name_joined = ''
+    for i in sorted(num_output.keys())[::-1]:
+        current_value = num_output[i]
+        num_name.append(num_to_text(current_value)+' '+num_dict[i])
+    if len(num_name)-1:
+        num_name_joined += ', '.join(num_name[:-1]) + ' and '
+    num_name_joined += num_name[-1]
+    print num_name_joined
+    
 else:
-    if rounded_prefix[-2:] == '.0':
-        rounded_prefix = rounded_prefix[:-2]
-
-
-print str(rounded_prefix) + num_suffix
+    
+    #Figure which name to use
+    num_digits = (Decimal(str(input))/Decimal(str(min_amount))).logb() - min_offset
+    num_exp = find_matching_exp(num_digits, all_available_numbers)
+    
+    #Calculate name
+    num_amount = num_dict[num_exp]
+    if num_amount:
+        num_amount = ' ' + num_amount
+    if num_exp < 0:
+        num_amount += 's'
+    
+    #Get value to match the amount (eg. 4000 = 4 and thousand)
+    num_prefix = input/pow(Decimal(10), Decimal(num_exp))
+    rounded_prefix = str(round(num_prefix, num_decimals))
+    
+    if force_decimals:
+        
+        #Convert output to string and fill in decimals
+        if '.' not in rounded_prefix:
+            rounded_prefix += '.'+'0'*num_decimals
+        else:
+            current_decimals = len(rounded_prefix.split('.')[1])
+            rounded_prefix += '0'*(num_decimals-current_decimals)
+            
+    else:
+        #Keep output with same decimal places, or remove if .0
+        if rounded_prefix[-2:] == '.0':
+            rounded_prefix = rounded_prefix[:-2]
+    
+    print str(rounded_prefix) + num_amount
