@@ -1,50 +1,58 @@
 from decimal import Decimal, getcontext
+
 class NumberNames:
+    """Build list of numbers from 0 to 10^3000."""
+    
+    #Name lists for 0 to 999
     num_units = ['zero','one','two','three','four','five','six','seven','eight','nine']
     num_teens = ['ten','eleven','twelve']+[i+'teen' for i in ['thir','four','fif']+num_units[6:]]
     num_tens = [i+('ty' if i[-1]!='t' else 'y') for i in ['twen','thir','for','fif']+num_units[6:]]
     
+    #Name rules for 10^33 to 10^300
     num_exp_prefix = ['', 'un','duo','tre','quattor','quin','sex','septen','octo','novem']
     num_exp_amount = ['']+[i+'int' for i in ['vig','trig','quadrag','quinquag','sexag','septuag','octog','nonag']]
     
+    #Name rules for 10^303 to 10^3000
     num_exp_units = [i+'illion' for i in ['m','b','tr','quadr','quint','sext','sept','oct','non']]
     num_exp_tens = [j+'illion' for j in ['dec']+num_exp_amount[1:]]
     num_exp_hundreds = ['']+[i+'en' for i in ['c','duoc','trec','quadring','quing','sesc','septing','octing','nong']]
-
-
-
-num_dict = {}
-num_dict[2] = 'hundred'
-num_dict[3] = 'thousand'
-
-#Million through Nonillion
-exp_current = 6
-for i in NumberNames.num_exp_units:
-    num_dict[exp_current] = i
-    exp_current += 3
     
-#Iterate through exponential hundreds (cen+)
-for prefix_hundreds in NumberNames.num_exp_hundreds:
-    #Iterate through exponential tens (decillion+)
-    for prefix_tens in NumberNames.num_exp_tens:
-        #Iterate through exponential amounts (un, duo, tre, etc)
-        for prefix in NumberNames.num_exp_prefix:
-            num_dict[exp_current] = prefix_hundreds+prefix+prefix_tens
-            exp_current += 3
+    #Set up dictionary and manually add hundred and thousand which don't follow the rules
+    num_dict = {}
+    num_dict[2] = 'hundred'
+    num_dict[3] = 'thousand'
     
-    #Add tillion after the first run
-    if not prefix_hundreds:
-        NumberNames.num_exp_tens = ['tillion']+NumberNames.num_exp_tens
+    #Create Million through Nonillion (10^6 to 10^30)
+    exp_current = 6
+    for i in num_exp_units:
+        num_dict[exp_current] = i
+        exp_current += 3
+        
+    #Iterate through exponential hundreds (cen+)
+    for prefix_hundreds in num_exp_hundreds:
+        #Iterate through exponential tens (decillion+)
+        for prefix_tens in num_exp_tens:
+            #Iterate through exponential amounts (un, duo, tre, etc)
+            for prefix in num_exp_prefix:
+                num_dict[exp_current] = prefix_hundreds+prefix+prefix_tens
+                exp_current += 3
+        
+        #Add 'tillion' before 'decillion' after the first run
+        if not prefix_hundreds:
+            num_exp_tens = ['tillion']+num_exp_tens
 
-#Add decimal amounts
-for i in num_dict.keys():
-    if i != 3:
-        num_dict[-i] = num_dict[i]+'th'
-    else:
-        num_dict[-i] = num_dict[i][:-1]+'th'
+    #Add decimal amounts
+    for i in num_dict.keys():
+        if i != 3:
+            num_dict[-i] = num_dict[i]+'th'
+        else:
+            num_dict[-i] = num_dict[i][:-1]+'th'
+    
+    
+    #Add zero
+    num_dict[0] = ''
+    num_dict[-1] = ''
 
-#Add zero
-num_dict[0] = ''
 
 def remove_exponent(d):
     '''Remove exponent and trailing zeros.
@@ -54,28 +62,50 @@ def remove_exponent(d):
 
     '''
     return d.quantize(Decimal(1)) if d == d.to_integral() else d.normalize()
- 
-def num_to_text(input):
+
+
+def num_to_text(input, as_digits=False, **kwargs):
     """Convert number between 0 and 999 to text"""
     
+    use_fractions = kwargs.get('use_fractions', True)
+    fraction_precision = kwargs.get('fraction_precision', 100)
     negative_num = False
     
     if '.' in str(input):
         input = float(input)
     else:
         input = int(input)
-    positive_num = abs(input)
-    if input != positive_num:
+        
+    if input < 0:
+        input = input*-1
         negative_num = True
+        
+    if as_digits:
+        output = str(input)
+        if '.' in output:
+            fraction_output = find_fraction(float(output), fraction_precision)
+            if fraction_output and use_fractions:
+                fraction_suffix = get_fraction_suffix(*fraction_output)
+                return 'and {0}/{1}{s}'.format(*fraction_output, s=fraction_suffix)
+            else:
+                return 'point {}'.format(output.split('.')[1])
+        if negative_num:
+            output = '-' + output
+        return output
+        
+    if 0 > input or input > 999:
+        print "Warning: Number out of range."
+        return full_number(input, as_digits)
     
-    output_hundreds = int(positive_num/100)
-    output_tens = int((positive_num%100)/10)
-    output_units = int(positive_num%10)
-    output_decimals = str(positive_num).split('.')
+    
+    output_hundreds = int(input/100)
+    output_tens = int((input%100)/10)
+    output_units = int(input%10)
+    output_decimals = str(input).split('.')
     
     output_text = ''
     if negative_num:
-        output_text += 'minus '
+        output_text += 'negative '
     if output_hundreds:
         output_text += NumberNames.num_units[output_hundreds] + ' hundred'
     if output_tens:
@@ -83,6 +113,8 @@ def num_to_text(input):
             output_text += ' and '
         if output_tens != 1:
             output_text += NumberNames.num_tens[output_tens-2]
+        else:
+            output_text += NumberNames.num_teens[0]
     if output_units:
         if output_tens == 1:
             output_text += NumberNames.num_teens[output_units]
@@ -96,49 +128,175 @@ def num_to_text(input):
         output_text += NumberNames.num_units[output_units]
     if len(output_decimals)-1:
         output_text += ' point'
+        if output_text[:4] == NumberNames.num_units[0]:
+            output_text = output_text[5:]
         for i in output_decimals[1]:
             output_text += ' '+NumberNames.num_units[int(i)]
     
     return output_text
-  
+
 def find_matching_exp(input, all_available_numbers):
     """Iterate through list of numbers to find the lowest match."""
     for i in xrange(len(all_available_numbers)):
         try:
-            if num_digits < all_available_numbers[i+1]:
+            if input < all_available_numbers[i+1]:
                 return all_available_numbers[i]
         #If number is higher than max index
         except IndexError:
             return all_available_numbers[i]
-              
+       
+def find_fraction(input, precision):
+    """Convert a decimal into a fraction if possible."""
+    for j in xrange(2, precision+1):
+        j = float(j)
+        for i in xrange(1, int(j)):
+            if i/j == input:
+                return int(i), int(j)
+
+def get_fraction_suffix(x, y):
+    """Calculate fraction suffix based on numerator (x) and denominator (y).
+    Will use plural if numerator is above 1.
+    
+    >>> get_fraction_suffix(1, 3)
+    'rd'
+    >>> get_fraction_suffix(1, 4)
+    ''
+    >>> get_fraction_suffix(1, 5)
+    'th'
+    >>> get_fraction_suffix(2, 11)
+    'ths'
+    >>> get_fraction_suffix(1, 21)
+    'st'
+    """
+    
+    #Convert to str and get important characters
+    y = str(y)
+    x = str(x)
+    last_num = y[-1]
+    try:
+        second_num = y[-2]
+    except IndexError:
+        second_num = 0
+    
+    #Define rules
+    if y == '1':
+        suffix = ''
+    elif last_num == '3':
+        suffix = 'rd'
+    elif second_num == '1':
+        suffix = 'th'
+    elif last_num == '2':
+        if second_num:
+            suffix = 'nd'
+        else:
+            suffix = ''
+    elif last_num == '4' and not second_num:
+        suffix = ''
+    elif last_num == '1':
+        suffix = 'st'
+    else:
+        suffix = 'th'
+    
+    #Make plural if x is above 1
+    if x not in ('1', '0') and suffix:
+        suffix += 's'
+        
+    return suffix   
            
-input = "1426426426514999999926426426553114264264265531531.75"
-
-getcontext().prec = len(str(input))
-
-
+           
+input = "-10000503.55"
 
 #Set when to use the next name in list
 display_full_name = True
 
-min_amount = 1
-num_decimals = 2
-force_decimals = True
+#true display_full_name options
+as_digits = True
+use_fractions = True
 
-min_offset = Decimal(str(min_amount)).logb()
+#false display_full_name options
+min_amount = 1 #Minimum amount
+num_decimals = 2 #Amount of decimals to round to
+force_decimals = False #Force the number of decimals to be num_decimals
 
-   
-#Format input
-input = str(input).replace(" ","").replace("\n","")
-input = Decimal(str(input))
-all_available_numbers = tuple(sorted(num_dict.keys()))
-if display_full_name:
+
+def format_input(input):
+    """Format the input to remove spaces and new lines.
+    Also set the precision to the length of the input, as too low
+    can cause errors with calculations on large numbers.
     
+    Returns the number in Decimal() format.
+    
+    >>> format_input(4264.425)
+    Decimal('4264.425')
+    
+    >>> format_input('''
+    ... 1 000 000 000
+    ... 000 000 000
+    ... ''')
+    Decimal('1000000000000000000')
+    """
+    input = str(input).replace(" ","").replace("\n","")
+    getcontext().prec = len(input)
+    return Decimal(input)
+
+
+
+def full_number(input, as_digits=False, **kwargs):
+    """Convert a number to it's full text representation.
+    
+    full_number(input, as_digits, kwargs):
+        input: 
+            Number to use.
+            It can be in any format as long as it can be converted to Decimal.
+        as_digits: 
+            If the amounts should be kept as integers or not
+            True:
+                450 million and 20
+            False:
+                four hundred and fifty million and twenty
+            If the number is higher than the maximum number (10^3000), it is recommended to set to True).
+        kwargs:
+            use_fractions:
+                Will only work if as_digits is set to True.
+                Determine if decimal points should be converted to fractions if possible.
+                Fractions will contain prefixes, such as 1/3rd or 7/25ths.
+                Default: True
+            fraction_precision:
+                Range to look for a fraction.
+                Set to maximum denominator, where it'll search up until that point.
+                Default: 100
+    
+    
+    >>> input = 10000503.125
+    
+    >>> full_number(input, False)
+    'ten million, five hundred and three point one two five'
+    
+    >>> full_number(-input, False)
+    'negative ten million, five hundred and three point one two five'
+    
+    >>> full_number(input, True)
+    '10 million, 5 hundred and 3 and 1/8th'
+    
+    >>> full_number(-input, True, use_fractions=False)
+    '-10 million, 5 hundred and 3 point 125'
+    """
+    
+    all_available_numbers = tuple(sorted(NumberNames.num_dict.keys()))
+    
+    use_fractions = kwargs.get('use_fractions', True)
+    fraction_precision = kwargs.get('fraction_precision', 100)
+    
+    input = format_input(input)
     num_output = {}
     num_exp = 1
+    first_run = True
     
-    while num_exp > 0:
+    #Match values to exponentials
+    while num_exp > 0 and (input >= 1 or first_run):
         
+        first_run = False
+    
         #Figure which name to use
         num_digits = Decimal(str(input)).logb()
         num_exp = find_matching_exp(num_digits, all_available_numbers)
@@ -148,30 +306,123 @@ if display_full_name:
         current_output = input/current_multiplier
         
         #Add to output
-        if num_exp:
-            num_output[num_exp] = (str(current_output).split('.')[0])
-            input = input%pow(Decimal(10), Decimal(num_exp))
-        else:
-            num_output[num_exp] = input
+        num_output[num_exp] = (str(current_output).split('.')[0])
+        input = input%pow(Decimal(10), Decimal(num_exp))
+        
+        #Make positive
+        if input < 0:
+            input *= -1
     
     num_name = []
     num_name_joined = ''
+    
+    #Fix for values between 0 and 1
+    if not num_output:
+        num_output[0] = 0
+        
+    #Convert numbers to words
     for i in sorted(num_output.keys())[::-1]:
         current_value = num_output[i]
-        num_name.append(num_to_text(current_value)+' '+num_dict[i])
+        additional_value = ''
+        if NumberNames.num_dict[i]:
+            additional_value = ' '+NumberNames.num_dict[i]
+        num_name.append(num_to_text(current_value, as_digits, use_fractions=use_fractions, fraction_precision=fraction_precision) + additional_value)
+            
+    #Join list if more than one value
     if len(num_name)-1:
         num_name_joined += ', '.join(num_name[:-1]) + ' and '
     num_name_joined += num_name[-1]
-    print num_name_joined
     
-else:
+    #Add point
+    if input:
+        num_name_joined += ' '+num_to_text(input, as_digits, use_fractions=use_fractions, fraction_precision=fraction_precision)
     
+    return num_name_joined
+    
+def simple_number(input, min_amount=1, as_digits=True, **kwargs):
+    """Convert a number to a general text representation.
+    
+    simple_number(input, min_amount, num_decimals, force_decimals):
+        input: 
+            Number to use.
+            It can be in any format as long as it can be converted to Decimal.
+        min_amount:
+            Minimum amount required to move up a value.
+            It works on a log scale, but may be any value.
+            Example:
+                If you have 1 million, the current value is 1.
+                By default, you will go up to 999 thousand, then move to 1 million,
+                because 999 thousand is 0.999 million, and under 1.
+                However, set min_amount to 0.1, and it will switch to 0.1 million from 99 thousand.
+                Set min_amount to 10, and to reach 10 million, it will go up to 9999 thousand.
+                Set min_amount to 5, and it will move from 4999 thousand to 5 million.
+        num_decimals:
+            Number of decimal points to round to.
+        force_decimals:
+            If the number of decimal points should be fixed.
+            True:
+                5.3 million
+                2 thousand
+                7.64 billion
+            False:
+                5.30 million
+                2.00 thousand
+                7.64 billion
+    
+    
+    Example with decimal forcing
+    >>> input = 10000503.125
+    
+    Conversion with default settings
+    >>> simple_number(input)
+    '10.00 million'
+    
+    Conversion without forcing decimals
+    >>> simple_number(input, force_decimals=False)
+    '10 million'
+    
+    
+    Example with changing min_amount
+    >>> input = 54321
+    
+    Conversion with default minimum amount
+    >>> simple_number(input, 1)
+    '54.32 thousand'
+    
+    Conversion with low minimum amount
+    >>> simple_number(input, 0.1)
+    '0.05 million'
+    
+    Conversion with high minimum amount
+    >>> simple_number(input, 10)
+    '543.21 hundred'
+    
+    Conversion with minimum amount slightly below input
+    >>> simple_number(input, 0.5)
+    '0.05 million'
+    
+    Conversion with minimum amount slightly above input
+    >>> simple_number(input, 0.6)
+    '54.32 thousand'
+    
+    Example with text
+    >>> simple_number(input, 1, False)
+    'fifty-four point three two thousand'
+    """
+    
+    all_available_numbers = tuple(sorted(NumberNames.num_dict.keys()))
+    
+    num_decimals = kwargs.get('num_decimals', 2)
+    force_decimals = kwargs.get('force_decimals', True)
+
     #Figure which name to use
+    input = format_input(input)
+    min_offset = Decimal(str(min_amount)).logb()
     num_digits = (Decimal(str(input))/Decimal(str(min_amount))).logb() - min_offset
     num_exp = find_matching_exp(num_digits, all_available_numbers)
     
     #Calculate name
-    num_amount = num_dict[num_exp]
+    num_amount = NumberNames.num_dict[num_exp]
     if num_amount:
         num_amount = ' ' + num_amount
     if num_exp < 0:
@@ -195,4 +446,14 @@ else:
         if rounded_prefix[-2:] == '.0':
             rounded_prefix = rounded_prefix[:-2]
     
-    print str(rounded_prefix) + num_amount
+    if not as_digits:
+        rounded_prefix = num_to_text(rounded_prefix)
+    return str(rounded_prefix) + num_amount
+    
+    
+    
+if display_full_name:
+    print full_number(input, as_digits, use_fractions=use_fractions)
+
+else:
+    print simple_number(input, min_amount, num_decimals, force_decimals)
