@@ -62,29 +62,34 @@ def num_to_text(input, as_digits=False, **kwargs):
     """Convert number between 0 and 999 to text"""
     
     use_fractions = kwargs.get('use_fractions', True)
-    #num_decimals = kwargs.get('num_decimals', None)
+    only_return_decimal = kwargs.get('only_return_decimal', False)
     fraction_precision = kwargs.get('fraction_precision', 100)
-    #force_decimals_when_none = kwargs.get('force_decimals_when_none', False)
     negative_num = False
     
     #Fix for -0
     if isinstance(input, str):
         if input[0] == '-':
-            input = input [1:]
+            input = input[1:]
             negative_num = True
     
     #Convert to float or int
     num_zeroes = 0
     input = str(input)
+    
+        
+    #Get number of zeroes that are being removed to add again later
+    no_zeroes = input
     if '.' in input:
-        num_zeroes = len(input)-len(input.rstrip('0'))
+        no_zeroes = input.rstrip('0')
+        num_zeroes = len(input)-len(no_zeroes)
         
         #Fix number of zeros being 1 too high if all decimal points = 0
-        if input.rstrip('0')[-1] == '.':
+        if no_zeroes[-1] == '.':
             num_zeroes -= 1
-            
-    input = Decimal(input)
+            no_zeroes += '0'
     
+    input = Decimal(no_zeroes)
+   
     #Make sure number is positive
     if input < 0:
         input = input*-1
@@ -94,17 +99,25 @@ def num_to_text(input, as_digits=False, **kwargs):
     if as_digits:
         
         output = str(input)+'0'*num_zeroes
-        
         if '.' in output:
-                        
+            
+            '''
+            #Fix for when input doesn't contain a decimal
+            if '.' not in str(input):
+                output = str(input)+'.'+'0'*num_zeroes
+                '''
+                
             #Attempt to calculate fraction of decimal point
             fraction_output = find_fraction(float(output), fraction_precision)
             if fraction_output and use_fractions:
                 fraction_suffix = get_fraction_suffix(*fraction_output)
-                return '{0}/{1}{s}'.format(*fraction_output, s=fraction_suffix)
+                fraction_prefix = ''
+                if not only_return_decimal:
+                    fraction_prefix = ' and '
+                return '{p}{0}/{1}{s}'.format(*fraction_output, s=fraction_suffix, p=fraction_prefix)
             else:
                 #Return decimal points if 0.x
-                if 0 < output < 1:
+                if only_return_decimal:
                     return '.'+str(output.split('.')[1])
                 #Return number with decimals if not between 0 and 1
                 else:
@@ -157,16 +170,18 @@ def num_to_text(input, as_digits=False, **kwargs):
                 output_text += ' and '
             output_text += NumberNames.num_units[output_units]
     #Add a zero
-    if not (output_hundreds or output_tens or output_units):
+    if not (output_hundreds or output_tens or output_units) and not only_return_decimal:
         output_text += NumberNames.num_units[output_units]
         
     #Add the decimal points
     if len(output_decimals)>1:
         output_text += ' point'
         #Remove 'zero' if 'zero point x'
-        #This feature is not removed as num_to_text should work with manual inputs too
-        #if output_text[:4] == NumberNames.num_units[0]:
-        #    output_text = output_text[4:]
+        '''
+        if only_return_decimal:
+            if output_text[:4] == NumberNames.num_units[0]:
+                output_text = output_text[4:]
+                '''
         #Write list of decimals
         for i in output_decimals[1]:
             output_text += ' '+NumberNames.num_units[int(i)]
@@ -248,20 +263,6 @@ def get_fraction_suffix(x, y):
         
     return suffix   
            
-           
-input = "-10000503.55"
-
-#Set when to use the next name in list
-display_full_name = True
-
-#true display_full_name options
-as_digits = True
-use_fractions = True
-
-#false display_full_name options
-min_amount = 1 #Minimum amount
-num_decimals = 2 #Amount of decimals to round to
-force_decimals = False #Force the number of decimals to be num_decimals
 
 
 def format_input(input):
@@ -291,7 +292,7 @@ def round_with_precision(input, num_decimals=None, force_decimals=True, force_de
     #Accurately round the number
     if num_decimals is not None:
         
-        #increase the precision to stop errors on large num_decimals
+        #Increase the precision to stop errors on large num_decimals values
         current_context = getcontext().prec
         getcontext().prec = max(current_context, num_decimals*1.1)
         
@@ -302,10 +303,12 @@ def round_with_precision(input, num_decimals=None, force_decimals=True, force_de
         input = Decimal(str(input).rstrip('0'))
         
         getcontext().prec = current_context
+        
     
     input = str(input)
-    ends_in_zero = input != input.rstrip('0')
+    #ends_in_zero = input != input.rstrip('0')
     
+        
     if force_decimals:
         
         #Convert output to string and fill in decimals
@@ -319,10 +322,11 @@ def round_with_precision(input, num_decimals=None, force_decimals=True, force_de
             current_decimals = len(input.split('.')[1])
             input += '0'*(num_decimals-current_decimals)
     
-    if (not force_decimals or not force_decimals_when_none) and not ends_in_zero:
-        #Keep output with same decimal places, or remove if .0
-        if input[-2:] == '.0':
-            input = input[:-2]
+    #Trim decimal places if not forcing decimals
+    if not force_decimals or not force_decimals_when_none:
+        input = input.rstrip('0')
+        if input[-1] == '.':
+            input += '0'
             
     return input
 
@@ -467,9 +471,9 @@ class LargeNumber(Decimal):
         'fifty-four point three two thousand'
         """
         max_iterations = kwargs.get('max_iterations', None)
-        num_decimals = kwargs.get('num_decimals', 2)
+        num_decimals = kwargs.get('num_decimals', 3)
         force_decimals = kwargs.get('force_decimals', True)
-        force_decimals_when_none = kwargs.get('force_decimals_when_none', False)
+        force_decimals_when_none = kwargs.get('force_decimals_when_none', True)
         
         min_amount = Decimal(str(kwargs.get('min_amount', 1)))
         
@@ -484,6 +488,7 @@ class LargeNumber(Decimal):
         first_run = True
         
         max_steps = 1
+       
         
         #Get multiplier from the min_amount variable
         min_amount_multiplier = Decimal(('%.2E'%min_amount).split('E')[0])
@@ -494,7 +499,13 @@ class LargeNumber(Decimal):
             first_run = False
             
             #Figure which name to use
-            num_digits = (input/min_amount_multiplier).logb() - min_offset
+            if input:
+                num_digits = (input/min_amount_multiplier).logb()
+            else:
+                #Fix to stop logb() error if input is zero
+                num_digits = Decimal(1).logb()
+                
+            num_digits -= min_offset
             num_exp = find_matching_exp(num_digits, self.all_available_numbers)
             
             #Fix when given a high min_amount value that pushes num_exp below 0
@@ -538,6 +549,7 @@ class LargeNumber(Decimal):
         fraction_precision = kwargs.get('fraction_precision', 100)
         
         num_decimals = kwargs.get('num_decimals', None)
+        max_decimals = kwargs.get('max_decimals', None)
         force_decimals = kwargs.get('force_decimals', True)
         force_decimals_when_none = kwargs.get('force_decimals_when_none', False)
         
@@ -565,7 +577,25 @@ class LargeNumber(Decimal):
             should_use_fractions = use_fractions
             if i:
                 should_use_fractions = False
+                if force_decimals_when_none:
+                    
+                    #Force decimals when there are no initial decimals, to stop things like 65 million0.0
+                    force_decimals_when_none = False
+                    if num_decimals is not None:
+                        
+                        #Check if existing decimal points (fixes things like 46.500.000 million)
+                        current_num_decimals = 0
+                        if '.' in current_value:
+                            current_num_decimals = len(current_value.split('.')[1])
+                        else:
+                            current_value += '.'
+                        required_decimals = max(0, num_decimals-current_num_decimals)
+                        current_value += '0'*required_decimals
+                        
+                    else:
+                        current_value += '.0'
                 
+            
             text_num = num_to_text(current_value, as_digits, 
                                    use_fractions=should_use_fractions, 
                                    fraction_precision=fraction_precision) + additional_value
@@ -590,16 +620,33 @@ class LargeNumber(Decimal):
                     remaining_decimals += '0'*num_decimals
                 else:
                     remaining_decimals += '0'
-             
+            
             #Convert to text
             remaining_decimals = round_with_precision(remaining_decimals, num_decimals, force_decimals, force_decimals_when_none)
+                            
+            decimal_num = num_to_text(remaining_decimals, as_digits, 
+                                      use_fractions=use_fractions, 
+                                      fraction_precision=fraction_precision,
+                                      force_decimals_when_none=force_decimals_when_none,
+                                      only_return_decimal=True)
             
-            if use_fractions and num_name_joined:
-                num_name_joined += ' and '
+            #Fix to stop fractions not removing a zero (eg. 0 and 2/5ths should be 2/5ths)
+            if '/' in decimal_num:
+                if num_name_joined and num_name_joined != '0':
+                    num_name_joined += ' and '
+                else:
+                    num_name_joined = ''
                 
-            num_name_joined += num_to_text(remaining_decimals, as_digits, 
-                                           use_fractions=use_fractions, 
-                                           fraction_precision=fraction_precision,
-                                           force_decimals_when_none=force_decimals_when_none)
+            num_name_joined += decimal_num
         
         return num_name_joined
+        
+    def quick(self, num_decimals=3):
+        """Quickly format the number."""
+        kwargs = {}
+        kwargs['max_iterations'] = 0
+        kwargs['num_decimals'] = num_decimals
+        kwargs['force_decimals_when_none'] = True
+        kwargs['use_fractions'] = False
+        kwargs['digits'] = True
+        return self.to_text(**kwargs)
