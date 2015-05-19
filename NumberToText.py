@@ -1,5 +1,6 @@
 from decimal import Decimal, getcontext
 
+
 class NumberNames:
     """Build list of numbers from 0 to 10^3000."""
     
@@ -41,14 +42,7 @@ class NumberNames:
         if not prefix_hundreds:
             num_exp_tens = ['tillion']+num_exp_tens
 
-    #Add decimal amounts
-    for i in num_dict.keys():
-        if i != 3:
-            num_dict[-i] = num_dict[i]+'th'
-        else:
-            num_dict[-i] = num_dict[i][:-1]+'th'
-    
-    
+            
     #Add zero
     num_dict[0] = ''
     num_dict[-1] = ''
@@ -84,11 +78,12 @@ def num_to_text(input, as_digits=False, **kwargs):
     input = str(input)
     if '.' in input:
         num_zeroes = len(input)-len(input.rstrip('0'))
-        if input[-2:] == '.0':
+        
+        #Fix number of zeros being 1 too high if all decimal points = 0
+        if input.rstrip('0')[-1] == '.':
             num_zeroes -= 1
-        input = float(input)
-    else:
-        input = int(input)
+            
+    input = Decimal(input)
     
     #Make sure number is positive
     if input < 0:
@@ -101,19 +96,12 @@ def num_to_text(input, as_digits=False, **kwargs):
         output = str(input)+'0'*num_zeroes
         
         if '.' in output:
-            
-            '''
-            #Force add decimal points
-            if num_decimals is not None:
-                if (output[-2:] == '.0' and force_decimals_when_none) or force_decimals:
-                    output += '0'*num_decimals
-                    '''
-            
+                        
             #Attempt to calculate fraction of decimal point
             fraction_output = find_fraction(float(output), fraction_precision)
             if fraction_output and use_fractions:
                 fraction_suffix = get_fraction_suffix(*fraction_output)
-                return ' and {0}/{1}{s}'.format(*fraction_output, s=fraction_suffix)
+                return '{0}/{1}{s}'.format(*fraction_output, s=fraction_suffix)
             else:
                 #Return decimal points if 0.x
                 if 0 < output < 1:
@@ -177,8 +165,8 @@ def num_to_text(input, as_digits=False, **kwargs):
         output_text += ' point'
         #Remove 'zero' if 'zero point x'
         #This feature is not removed as num_to_text should work with manual inputs too
-        if output_text[:4] == NumberNames.num_units[0]:
-            output_text = output_text[4:]
+        #if output_text[:4] == NumberNames.num_units[0]:
+        #    output_text = output_text[4:]
         #Write list of decimals
         for i in output_decimals[1]:
             output_text += ' '+NumberNames.num_units[int(i)]
@@ -298,9 +286,23 @@ def format_input(input):
 
 def round_with_precision(input, num_decimals=None, force_decimals=True, force_decimals_when_none=False):
     
+    input = Decimal(input)
+    
+    #Accurately round the number
     if num_decimals is not None:
-        input = round(input, num_decimals)
         
+        #increase the precision to stop errors on large num_decimals
+        current_context = getcontext().prec
+        getcontext().prec = max(current_context, num_decimals*1.1)
+        
+        if num_decimals:
+            input = input.quantize(Decimal('0.'+'0'*(num_decimals-1)+'1'))
+        else:
+            input = input.quantize(Decimal('1'))
+        input = Decimal(str(input).rstrip('0'))
+        
+        getcontext().prec = current_context
+    
     input = str(input)
     ends_in_zero = input != input.rstrip('0')
     
@@ -324,29 +326,27 @@ def round_with_precision(input, num_decimals=None, force_decimals=True, force_de
             
     return input
 
-class LargeNumber(object):
+
+class LargeNumber(Decimal):
     
-    def __init__(self, input, as_digits=False):
+    def __init__(self, input, **kwargs):
+        
+        #Copy over class objects from decimal
+        Decimal.__init__(input)
+        '''
+        To do: add custom functions to output LargeNumber instead of Decimal
+        add, subtract, multiply, etc
+        '''
+        
         self.input = format_input(input)
-        self.as_digits = as_digits
+        self.as_digits = kwargs.get('digits', True)
         self.all_available_numbers = tuple(sorted(NumberNames.num_dict.keys()))
     
-    def __str__(self):
-        """Return number as string."""
-        return str(self.input)
-    def __int__(self):
-        """Return number as integer."""
-        return int(self.input)
-    def __float__(self):
-        """Return number as float."""
-        return float(self.input)
-    def __abs__(self):
-        """Return absolute number."""
-        return abs(self.input)
     def __repr__(self):
         """Return class with number."""
         
         #Remove the exponent if a large int/float value is input
+        #Squared length seems to work but increase if error
         if 'E+' in str(self.input):
             original_precision = getcontext().prec
             getcontext().prec = len(str(self.input))**2
@@ -357,7 +357,7 @@ class LargeNumber(object):
             
         return "LargeNumber('{}')".format(formatted_input)
     
-    def _full_calculate(self, **kwargs):
+    def _calculate_number_parts(self, **kwargs):
         """Convert a number to it's full text representation.
         
         full_number(input, as_digits, kwargs):
@@ -397,142 +397,6 @@ class LargeNumber(object):
         >>> full_number(-input, True, use_fractions=False)
         '-10 million, 5 hundred and 3 point 125'
         """
-        max_iterations = kwargs.get('max_iterations', None)
-        num_decimals = kwargs.get('num_decimals', None)
-        force_decimals = kwargs.get('force_decimals', True)
-        force_decimals_when_none = kwargs.get('force_decimals_when_none', False)
-        
-        input = self.input
-        num_output = {}
-        num_exp = 1
-        first_run = True
-        
-        max_steps = 1
-        
-        #Match values to exponentials
-        while num_exp > 0 and (input >= 1 or first_run):
-                    
-            #Figure which name to use
-            num_digits = Decimal(str(input)).logb()
-            num_exp = find_matching_exp(num_digits, self.all_available_numbers)
-            
-            #Fix for values between 0 and 1
-            if -1 < input < 1:
-                num_exp = 0
-                
-            #Get matching amount 
-            current_multiplier = pow(Decimal(10), Decimal(num_exp))
-            current_output = input/current_multiplier
-            
-            #Add to output
-            if len(num_output)+1 > max_iterations and max_iterations is not None:
-                
-                #Cut off after hitting maximum iterations
-                '''
-                current_output = str(round(current_output, num_decimals))
-                
-                if force_decimals:
-                    
-                    #Convert output to string and fill in decimals
-                    if '.' not in current_output:
-                        current_output += '.'+'0'*num_decimals
-                    else:
-                        current_decimals = len(current_output.split('.')[1])
-                        current_output += '0'*(num_decimals-current_decimals)
-                        
-                else:
-                    #Keep output with same decimal places, or remove if .0
-                    if current_output[-2:] == '.0':
-                        current_output = current_output[:-2]
-                        '''
-                current_output = round_with_precision(current_output, num_decimals, force_decimals, force_decimals_when_none)
-                
-                num_output[num_exp] = (str(current_output))
-                input = 0
-                break
-
-                
-            else:
-                
-                #Continue
-                num_output[num_exp] = (str(current_output).split('.')[0])
-                input = input%pow(Decimal(10), Decimal(num_exp))
-            
-            #Make number positive after first run
-            if input < 0:
-                input *= -1
-        
-        return input, num_output
-
-    
-    def full(self, **kwargs):
-        
-        use_fractions = kwargs.get('use_fractions', True)
-        fraction_precision = kwargs.get('fraction_precision', 100)
-        
-        
-        num_decimals = kwargs.get('num_decimals', None)
-        force_decimals = kwargs.get('force_decimals', True)
-        force_decimals_when_none = kwargs.get('force_decimals_when_none', False)
-        
-        num_name = []
-        num_name_joined = ''
-        input, num_output = self._full_calculate(**kwargs)
-        
-        #Fix for values between 0 and 1
-        if not num_output:
-            num_output[0] = 0
-        
-        #Convert numbers to words
-        for i in sorted(num_output.keys())[::-1]:
-            current_value = num_output[i]
-            additional_value = ''
-            if NumberNames.num_dict[i]:
-                additional_value = ' '+NumberNames.num_dict[i]
-            num_name.append(num_to_text(current_value, self.as_digits, use_fractions=use_fractions, fraction_precision=fraction_precision) + additional_value)
-        
-        #Join list
-        if len(num_name)-1:
-            num_name_joined += ', '.join(num_name[:-1]) + ' and '
-        num_name_joined += num_name[-1]
-            
-        #Add decimal point
-        if input:# or force_decimals:
-            
-            if not input:
-                input = '0.'
-                if num_decimals is not None:
-                    input += '0'*num_decimals
-                else:
-                    input += '0'
-                    
-            '''
-            input = round(input, num_decimals)
-            input = str(input)
-            if force_decimals:
-                
-                #Convert output to string and fill in decimals
-                if '.' not in input:
-                    input += '.'+'0'*num_decimals
-                else:
-                    current_decimals = len(input.split('.')[1])
-                    input += '0'*(num_decimals-current_decimals)
-                    
-            if not force_decimals or not force_decimals_when_none:
-                #Keep output with same decimal places, or remove if .0
-                if input[-2:] == '.0':
-                    input = input[:-2]
-                    '''
-            input = round_with_precision(input, num_decimals, force_decimals, force_decimals_when_none)
-            
-            num_name_joined += num_to_text(input, self.as_digits, 
-                                           use_fractions=use_fractions, 
-                                           fraction_precision=fraction_precision,
-                                           force_decimals_when_none=force_decimals_when_none)
-        
-        return num_name_joined
-        
-    def _simple_calculate(self, input, min_amount=1, **kwargs):
         """Convert a number to a general text representation.
         
         simple_number(input, min_amount, num_decimals, force_decimals):
@@ -602,49 +466,140 @@ class LargeNumber(object):
         >>> simple_number(input, 1, False)
         'fifty-four point three two thousand'
         """
-        
+        max_iterations = kwargs.get('max_iterations', None)
         num_decimals = kwargs.get('num_decimals', 2)
         force_decimals = kwargs.get('force_decimals', True)
-    
-        #Figure which name to use
+        force_decimals_when_none = kwargs.get('force_decimals_when_none', False)
+        
+        min_amount = Decimal(str(kwargs.get('min_amount', 1)))
+        
+        #If more than one iteration, set the min amount to 1 otherwise you get an infinite loop
+        if max_iterations and min_amount < 1:
+            min_amount = Decimal('1')
+        min_offset = min_amount.logb()
+        
         input = self.input
-        min_offset = Decimal(str(min_amount)).logb()
-        num_digits = (Decimal(str(input))/Decimal(str(min_amount))).logb() - min_offset
-        num_exp = find_matching_exp(num_digits, self.all_available_numbers)
+        num_output = {}
+        num_exp = 1
+        first_run = True
         
-        #Calculate name
-        num_amount = NumberNames.num_dict[num_exp]
-        if num_amount:
-            num_amount = ' ' + num_amount
-        if num_exp < 0:
-            num_amount += 's'
+        max_steps = 1
         
-        #Get value to match the amount (eg. 4000 = 4 and thousand)
-        num_prefix = input/pow(Decimal(10), Decimal(num_exp))
-        rounded_prefix = str(round(num_prefix, num_decimals))
+        #Get multiplier from the min_amount variable
+        min_amount_multiplier = Decimal(('%.2E'%min_amount).split('E')[0])
         
-        if force_decimals:
+        #Match values to exponentials
+        while num_exp > 0 and (input >= 1 or first_run):
             
-            #Convert output to string and fill in decimals
-            if '.' not in rounded_prefix:
-                rounded_prefix += '.'+'0'*num_decimals
-            else:
-                current_decimals = len(rounded_prefix.split('.')[1])
-                rounded_prefix += '0'*(num_decimals-current_decimals)
+            first_run = False
+            
+            #Figure which name to use
+            num_digits = (input/min_amount_multiplier).logb() - min_offset
+            num_exp = find_matching_exp(num_digits, self.all_available_numbers)
+            
+            #Fix when given a high min_amount value that pushes num_exp below 0
+            if num_exp <= 0:
+                num_exp = 0
+            
+            #Fix for values between 0 and 1
+            if -1 < input < 1:
+                num_exp = 0
                 
-        else:
-            #Keep output with same decimal places, or remove if .0
-            if rounded_prefix[-2:] == '.0':
-                rounded_prefix = rounded_prefix[:-2]
-        
-        return rounded_prefix, num_amount
+            #Get matching amount 
+            current_multiplier = pow(Decimal(10), Decimal(num_exp))
+            current_output = input/current_multiplier
             
-    def simple(self, min_amount=1, **kwargs):
-        rounded_prefix, num_amount = self._simple_calculate(min_amount, **kwargs)
-        if not self.as_digits:
-            rounded_prefix = num_to_text(rounded_prefix)
-        return str(rounded_prefix) + num_amount
+            #Add to output
+            if len(num_output)+1 > max_iterations and max_iterations is not None:
+                
+                current_output = round_with_precision(current_output, num_decimals, force_decimals, force_decimals_when_none)
+                num_output[num_exp] = (str(current_output))
+                input = 0
+                break
+                
+            else:
+                
+                #Continue
+                num_output[num_exp] = (str(current_output).split('.')[0])
+                input = input%pow(Decimal(10), Decimal(num_exp))
+            
+            #Make number positive after first run
+            if input < 0:
+                input *= -1
+        
+        num_output[-1] = input
+        
+        return num_output
+
     
-    def none(self):
-        """Return number as integer in a string format."""
-        return str(self)
+    def to_text(self, **kwargs):
+        
+        use_fractions = kwargs.get('use_fractions', True)
+        fraction_precision = kwargs.get('fraction_precision', 100)
+        
+        num_decimals = kwargs.get('num_decimals', None)
+        force_decimals = kwargs.get('force_decimals', True)
+        force_decimals_when_none = kwargs.get('force_decimals_when_none', False)
+        
+        as_digits = kwargs.get('digits', True)
+        
+        num_name = []
+        num_name_joined = ''
+        num_output = self._calculate_number_parts(**kwargs)
+        
+        #Get remaining decimals for later and remove from output
+        remaining_decimals = num_output.pop(-1)
+        
+        #Fix for values between 0 and 1
+        if not num_output:
+            num_output[0] = 0
+        
+        #Convert numbers to words
+        for i in sorted(num_output.keys())[::-1]:
+            current_value = num_output[i]
+            additional_value = ''
+            if NumberNames.num_dict[i]:
+                additional_value = ' '+NumberNames.num_dict[i]
+            
+            #Avoid using fractions if prefix (eg. 0.5 billion not 1/2 billion)
+            should_use_fractions = use_fractions
+            if i:
+                should_use_fractions = False
+                
+            text_num = num_to_text(current_value, as_digits, 
+                                   use_fractions=should_use_fractions, 
+                                   fraction_precision=fraction_precision) + additional_value
+            
+            #Fix for min_amount under 0
+            if i and current_value[:10] == 'zero point':
+                text_num = text_num[5:]
+                
+            num_name.append(text_num)
+        
+        #Join list
+        if len(num_name)-1:
+            num_name_joined += ', '.join(num_name[:-1]) + ' and '
+        num_name_joined += num_name[-1]
+        
+        #Add decimal point
+        if remaining_decimals or force_decimals_when_none:
+            
+            if not remaining_decimals:
+                remaining_decimals = '0.'
+                if num_decimals is not None:
+                    remaining_decimals += '0'*num_decimals
+                else:
+                    remaining_decimals += '0'
+             
+            #Convert to text
+            remaining_decimals = round_with_precision(remaining_decimals, num_decimals, force_decimals, force_decimals_when_none)
+            
+            if use_fractions and num_name_joined:
+                num_name_joined += ' and '
+                
+            num_name_joined += num_to_text(remaining_decimals, as_digits, 
+                                           use_fractions=use_fractions, 
+                                           fraction_precision=fraction_precision,
+                                           force_decimals_when_none=force_decimals_when_none)
+        
+        return num_name_joined
