@@ -61,8 +61,10 @@ class NumberNames:
     Would do more but I couldn't find the rules for above 3000.
     
     Functions:
-        all_available_numbers:
+        num_dict:
             Not a function, but returns the list of every number suffix.
+        all_available_numbers:
+            Not a function, but returns a sorted tuple of each num_dict index.
         num_to_text:
             Convert number between 0 and 999 to text.
     """
@@ -975,7 +977,6 @@ class LargeNumber(Decimal):
         
         #Fix to merge decimal with lowest exponential value to stop errors such as 1.000.35
         if force_decimals and remaining_decimals and num_output.get(0, 0):
-            #123456789000
             only_exponential = sorted(num_output.keys())[0]
             num_output[only_exponential] = str(self._round_with_precision(str(Decimal(num_output[only_exponential])+
                                                                               Decimal(remaining_decimals)*
@@ -1043,7 +1044,14 @@ class LargeNumber(Decimal):
         
         #Join list
         if len(num_name)-1:
-            num_name_joined += ', '.join(num_name[:-1]) + ' and '
+            num_name_joined += ', '.join(num_name[:-1])
+        #If there are decimals, and it's not the units value, don't use a final and
+        #For example, '465 thousand and 4 hundred and 0.24' to '465 thousand, 4 hundred and 0.24'
+        if num_name_joined:
+            if remaining_decimals and as_digits and num_output.get(0, None) != num_name[-1]:
+                num_name_joined += ', '
+            else:
+                num_name_joined += ' and '
         num_name_joined += num_name[-1]
         
         #Add decimal point
@@ -1078,7 +1086,7 @@ class LargeNumber(Decimal):
             
             #Fix if there are no units (1 hundred.5 to 1 hundred and 0.5)
             if 0 not in num_output:
-                if as_digits:
+                if as_digits and '/' not in decimal_num:
                     num_name_joined += ' and 0'
                 else:
                     pass
