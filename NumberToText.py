@@ -71,7 +71,7 @@ class NumberNames:
     
     #Name lists for 0 to 999
     num_units = ['zero','one','two','three','four','five','six','seven','eight','nine']
-    num_teens = ['ten','eleven','twelve']+[i+'teen' for i in ['thir','four','fif']+num_units[6:]]
+    num_teens = ['ten','eleven','twelve']+[i+('t' if i[-1]!='t' else '')+'een' for i in ['thir','four','fif']+num_units[6:]]
     num_tens = [i+('ty' if i[-1]!='t' else 'y') for i in ['twen','thir','for','fif']+num_units[6:]]
     
     #Name rules for 10^33 to 10^300
@@ -106,6 +106,9 @@ class NumberNames:
         #Add 'tillion' before 'decillion' after the first run
         if not prefix_hundreds:
             num_exp_tens = ['tillion']+num_exp_tens
+    
+    for key in num_dict.keys():
+        num_dict[-key] = num_dict[key]+'th'
 
     #Add zero
     num_dict[0] = ''
@@ -145,6 +148,10 @@ class NumberNames:
                 fraction_precision:
                     Default: 100
                     See LargeNumber().to_text()
+                
+                num_digits:
+                    Default: None
+                    See LargeNumber().to_text()
         
         
         General Examples:
@@ -160,6 +167,8 @@ class NumberNames:
             Warning: Number out of range!
             'nine thousand, nine hundred and ninety-nine'
             >>> NumberNames.num_to_text(572.5)
+            'five hundred and seventy-two and one half'
+            >>> NumberNames.num_to_text(572.5, use_fractions=False)
             'five hundred and seventy-two point five'
             >>> NumberNames.num_to_text(572.5, True)
             '572 and 1/2'
@@ -170,14 +179,15 @@ class NumberNames:
             >>> NumberNames.num_to_text(572.5, True, use_fractions=False, only_return_decimal=True)
             '.5'
             >>> NumberNames.num_to_text(572.5, False, only_return_decimal=True)
-            'point five'
-        
+            'one half'
         """
         
         use_fractions = kwargs.get('use_fractions', True)
         only_return_decimal = kwargs.get('only_return_decimal', False)
         fraction_precision = kwargs.get('fraction_precision', 100)
         print_warning = kwargs.get('print_warning', False)
+        decimal_key = kwargs.get('decimal_key', -1)
+        num_decimals = kwargs.get('num_decimals', None)
         
         negative_num = False
         #Fix for -0
@@ -189,7 +199,7 @@ class NumberNames:
         #Convert to float or int
         num_zeroes = 0
         input = str(input)
-            
+        
         #Get number of zeroes that are being removed to add again later
         no_zeroes = input
         if '.' in input:
@@ -202,27 +212,34 @@ class NumberNames:
                 no_zeroes += '0'
         
         input = Decimal(no_zeroes)
-       
+        
         #Make sure number is positive
         if input < 0:
             input = input*-1
             negative_num = True
             
+        output = str(input)
+        if not use_fractions:
+            output += '0'*num_zeroes
+        
         #If only integers should be returned
         if as_digits:
-            output = str(input)+'0'*num_zeroes
             
             #Re-add the negative sign
             if negative_num:
                 output = '-' + output
-                
+            
             if '.' in output:
                 
                 #Split output for when it's been combined with another exponential value (must be between 0 and 1)
-                decimal_output = '0.'+output.split('.')[1]
+                #decimal_output = '0.'+output.split('.')[1]
+                decimal_output = Decimal(output)
+                if only_return_decimal:
+                    decimal_output %= 1
+                    
                 
                 #Attempt to calculate fraction of decimal point
-                fraction_output = CalculateFraction.find(float(decimal_output), fraction_precision)
+                fraction_output = CalculateFraction.find(float(decimal_output%1), fraction_precision)
                 if fraction_output and use_fractions:
                     fraction_suffix = CalculateFraction.suffix(*fraction_output)
                     fraction_prefix = ''
@@ -230,10 +247,24 @@ class NumberNames:
                     #Add prefix if not only returning the decimal
                     if not only_return_decimal:
                         fraction_prefix = output.split('.')[0]+' and '
-                    
                     return '{p}{0}/{1}{s}'.format(*fraction_output, s=fraction_suffix, p=fraction_prefix)
                     
                 else:
+                    #Try return the fraction output again in a more wordy format
+                    if use_fractions:
+                        
+                        if '.' in str(decimal_output) and str(decimal_output)[-2:] != '.0':
+                            
+                            numerator = decimal_output/pow(Decimal('10'), Decimal(decimal_key))
+                            
+                            denominator = Decimal('1'+'0'*(-decimal_key))
+                            
+                            kwargs['digits'] = True
+                            kwargs['use_fractions'] = True
+                            fraction_output = CalculateFraction.to_text(numerator, denominator, **kwargs)
+                            
+                            return str(fraction_output)
+                            
                     #Return decimal points if 0.x
                     if only_return_decimal:
                         return '.'+str(output.split('.')[1])
@@ -283,20 +314,54 @@ class NumberNames:
                 elif output_hundreds:
                     output_text += ' and '
                 output_text += self.num_units[output_units]
+        
         #Add a zero
         if not (output_hundreds or output_tens or output_units) and not only_return_decimal:
             output_text += self.num_units[output_units]
-            
+        
         #Add the decimal points
+        remaining_decimals = str(input)
+        if '.' in remaining_decimals:
+            remaining_decimals = '0.'+remaining_decimals.split('.')[1]
+        
         if len(output_decimals)>1:
-            output_text += ' point'
-            if only_return_decimal:
-                output_text = 'point'
             
-            #Write list of decimals
-            for i in output_decimals[1]:
-                output_text += ' '+self.num_units[int(i)]
+            if use_fractions:
                 
+                fraction_output = CalculateFraction.find(float(remaining_decimals), fraction_precision)
+                if fraction_output:
+                    
+                    output_text += ' and '
+                    if only_return_decimal:
+                        output_text = ''
+                    
+                    #Add prefix if not only returning the decimal
+                    if not only_return_decimal:
+                        fraction_prefix = output.split('.')[0]+' and '
+                    
+                    output_text += CalculateFraction.to_text(*fraction_output, **kwargs)
+                    
+                else:
+                    numerator = Decimal(remaining_decimals)*Decimal('1'+'0'*(1-decimal_key-1))
+                    denominator = Decimal('1'+'0'*(-decimal_key+1))
+                    
+                    if numerator > 0:
+                        output_text += ' and'
+                        if only_return_decimal:
+                            output_text = ''
+                        output_text += CalculateFraction.to_text(numerator, denominator, **kwargs)
+                    else:
+                        output_text += ' point zero'
+            
+            else:
+                output_text += ' point'
+                if only_return_decimal:
+                    output_text = 'point'
+                
+                #Write list of decimals
+                for i in output_decimals[1]:
+                    output_text += ' '+self.num_units[int(i)]
+        
         return output_text
 
 
@@ -315,7 +380,7 @@ class CalculateFraction(object):
     def find(input, precision=100):
         """Convert a decimal into a fraction if possible.
         
-        Will check up to the value of precision, so a precision of 10 will not find 1/11th or below.
+        Will check up to the value of precision, so for example a precision of 10 will not find 1/11th or below.
         Recommended to use 100, but no more.
         Uses float so isn't too precise, as using Decimal is noticeably slower.
         
@@ -360,9 +425,16 @@ class CalculateFraction(object):
                     return i*original_input, int(j)
     
     @staticmethod
-    def suffix(x, y):
+    def suffix(numerator, denominator, **kwargs):
         """Calculate fraction suffix based on numerator (x) and denominator (y).
         Will use plural if numerator is above 1.
+        
+        Parameters:
+            numerator:
+                Number on top of the fraction.
+            
+            denominator:
+                Number below the fraction.
         
         >>> CalculateFraction.suffix(1, 3)
         'rd'
@@ -377,16 +449,16 @@ class CalculateFraction(object):
         """
         
         #Convert to str and get important characters
-        y = str(y)
-        x = str(x)
-        last_num = y[-1]
+        denominator = str(denominator)
+        numerator = str(numerator)
+        last_num = denominator[-1]
         try:
-            second_num = y[-2]
+            second_num = denominator[-2]
         except IndexError:
             second_num = 0
         
         #Define rules
-        if y == '1':
+        if denominator == '1':
             suffix = ''
         elif last_num == '3':
             suffix = 'rd'
@@ -405,10 +477,119 @@ class CalculateFraction(object):
             suffix = 'th'
         
         #Make plural if x is above 1
-        if x not in ('1', '0') and suffix:
+        if '.' in numerator:
+            numerator = numerator.rstrip('0')
+            if numerator[-1] == '.':
+                numerator = numerator[:-1]
+        if numerator not in ('1', '0') and (suffix or kwargs.get('ignore_suffix', None)):
             suffix += 's'
             
         return suffix   
+        
+        
+    @classmethod
+    def to_text(self, numerator, denominator, **kwargs):
+        """Convert a fraction to text. 
+        If the denominator is above 99 and doesn't contain a one followed by zeroes, it will be rationalised down to
+        the next lowest value.
+        Otherwise, no simplification will be done and the output will be exactly what is input.
+        If the denominator is 1, the output will be just the numerator.
+        If the denominator is less than 1, the output will be zero.
+        
+        Parameters:
+            numerator:
+                Number on top of the fraction.
+            
+            denominator:
+                Number below the fraction.
+                
+                
+        >>> CalculateFraction.to_text(5, 1)
+        'five'
+        >>> CalculateFraction.to_text(5, 0)
+        'zero'
+        >>> CalculateFraction.to_text(1, 4)
+        'one quarter'
+        >>> CalculateFraction.to_text(2, 17)
+        'two seventeenths'
+        >>> CalculateFraction.to_text(15, 500)
+        'three hundredths'
+        >>> CalculateFraction.to_text(104, 31500)
+        'three point three zero two thousandths'
+        >>> 104.0/31500.0
+        0.0033015873015873015
+        """
+        numerator = Decimal(str(numerator))
+        denominator = int(denominator)
+        
+        as_digits = kwargs.get('digits', False)
+        num_decimals = kwargs.get('num_decimals', None)
+        
+        #Set up the fraction specific rules, the rest can be got from NumberNames.num_dict
+        fraction_units = ['', 'fir', 'seco', 'thi', 'four', 'fif'] + [i[:-1] if i[-1] == 't' else i for i in NumberNames.num_units[6:]]
+        
+        #Manually add in individual cases that don't match a pattern
+        fraction_dict = {}
+        fraction_dict[2] = 'half'
+        fraction_dict[4] = 'quarter'
+        fraction_dict[12] = 'twelf'
+        
+        prefix = LargeNumber(numerator).to_text(digits=as_digits, max_iterations=0)+' '
+        suffix = self.suffix(numerator, denominator, ignore_suffix=True)
+        
+        #Special case for when denominator is 1 or below
+        if denominator < 2:
+            if denominator == 1:
+                return prefix[:-1]
+            else:
+                return LargeNumber(0).to_text(digits=False)
+                
+        #Return other special values that wouldn't generate correctly
+        elif fraction_dict.get(denominator, None) is not None:
+            return prefix+fraction_dict[denominator]+suffix
+            
+        #Return all other values up to 10
+        elif denominator < 10:
+            return prefix+fraction_units[denominator]+suffix
+            
+        #Return all values between 10 and 20
+        elif denominator < 20:
+            new_kwargs = kwargs.copy()
+            new_kwargs['use_fractions'] = False
+            return prefix+NumberNames.num_to_text(denominator, **new_kwargs)+suffix
+            
+        #Return any value between 20 and 100
+        elif denominator < 100:
+            #Detect if it has any units or not
+            if denominator%10:
+                return prefix+NumberNames.num_tens[denominator/10-2]+'-'+fraction_units[denominator%10]+suffix
+                
+            else:
+                return prefix+NumberNames.num_tens[denominator/10-2].replace('y', 'ie')+suffix
+                
+        else:
+            #Calculate parts to 0 iterations, to get a single denominator
+            kwargs['force_decimals'] = False
+            fraction_parts = LargeNumber(denominator)._calculate_number_parts(max_iterations=0, **kwargs)
+            del fraction_parts[-1]
+            output_values = {}
+            
+            #Get the only key
+            key = fraction_parts.keys()[0]
+            
+            #Rationalise the denominator into something printable if it can't be represented as a single exponential number
+            rationalised_denominator = Decimal(int(Decimal('1'+'0'*key)))
+            
+            if denominator != rationalised_denominator:
+                
+                #Calculate the new numerator if the denominator has been changed
+                rationalised_numerator = (rationalised_denominator/denominator)*numerator
+                rationalised_numerator = LargeNumber._round_with_precision(rationalised_numerator, kwargs.get('num_decimals', 3))
+                
+                #Loop back with the new values
+                return self.to_text(rationalised_numerator, rationalised_denominator, **kwargs)
+            
+            return prefix+NumberNames.num_dict[key]+suffix
 
 
 
@@ -432,7 +613,7 @@ class LargeNumber(Decimal):
             Split a number into separate exponentials.
     """
     
-    def __init__(self, input, **kwargs):
+    def __init__(self, input=0, **kwargs):
         
         #Copy over class objects from decimal
         Decimal.__init__(input)
@@ -449,10 +630,7 @@ class LargeNumber(Decimal):
         #Remove the exponent if a large int/float value is input
         #Squared length seems to stop precision errors but increase if error happens
         if 'E+' in str(self.input):
-            original_precision = getcontext().prec
-            getcontext().prec = len(str(self.input))**2
             formatted_input = self.remove_exponent(self.input)
-            getcontext().prec = original_precision
         else:
             formatted_input = self.input
             
@@ -483,11 +661,11 @@ class LargeNumber(Decimal):
         Decimal('1000000000000000000')
         """
         input = str(input).replace(" ","").replace("\n","")
-        getcontext().prec = max(28, len(input))
+        getcontext().prec = max(28, len(input)**2)
         return Decimal(input)
     
-    @staticmethod
-    def _round_with_precision(input, num_decimals=None, force_decimals=False):
+    @classmethod
+    def _round_with_precision(self, input, num_decimals=None, force_decimals=False):
         """Accurately round a number between 0 and 1. 
         Used because the round() function doesn't have enough precision.
         If the output number is rounded and has zeroes at the end, trim the zeroes only if the 
@@ -521,27 +699,39 @@ class LargeNumber(Decimal):
         >>> LargeNumber._round_with_precision(0.54200001, num_decimals=4)
         '0.5420'
         >>> LargeNumber._round_with_precision(1)
+        '1'
+        >>> LargeNumber._round_with_precision(1, force_decimals=True)
         '1.0'
         """
         input = str(input)
-        if '.' in str(input):
+        
+        #Format decimals or return current value without a decimal
+        if '.' in input:
             original_input = input.rstrip('0')
         else:
-            original_input = input+'.0'
+            if force_decimals:
+                original_input = input+'.0'
+            else:
+                return input
+        
         input = Decimal(original_input)
         
         #Accurately round the number
         if num_decimals is not None:
             
             #Increase the precision to stop errors on large num_decimals values
-            current_context = getcontext().prec
-            getcontext().prec = max(current_context, num_decimals*1.1)
             if num_decimals:
+                getcontext().prec=1000
                 input = input.quantize(Decimal('0.'+'0'*(num_decimals-1)+'1'))
             else:
                 input = input.quantize(Decimal('1'))
-            getcontext().prec = current_context
+                
         input = str(input)
+        #Little fix for irritating minus exponentials
+        if 'E' in input:
+            if 'E-' in input and '.' not in input:
+                input_parts = input.split('E-')
+                input = input_parts[0]+'.'+'0'*int(input_parts[1])
         
         if force_decimals:
             
@@ -563,7 +753,7 @@ class LargeNumber(Decimal):
             input = input.rstrip('0')
             if input[-1] == '.':
                 input = input[:-1]
-                
+        
         return input
     
     @classmethod
@@ -590,10 +780,11 @@ class LargeNumber(Decimal):
         
         Parameters:
             input:
-                Calculated exponential value
+                Calculated exponential value.
                 
             all_available_numbers:
-                All exponential values
+                List of every exponential value.
+                The one in NumberNames is from -3000 to 3000 for example.
                 
         
         >>> all_available_numbers = NumberNames.all_available_numbers
@@ -604,7 +795,7 @@ class LargeNumber(Decimal):
         >>> LargeNumber._find_matching_exp(10000, all_available_numbers)
         3000
         >>> LargeNumber._find_matching_exp(-47, all_available_numbers)
-        -1
+        -48
         """
         for i in xrange(len(all_available_numbers)):
             try:
@@ -618,6 +809,7 @@ class LargeNumber(Decimal):
     def _calculate_number_parts(self, **kwargs):
         """Used by to_text() for calculating the output. Returns dictionary of numbers matching their exponential.
         The exponentials are calculated from the NumberNames class.
+        Only returns one exponential from below 0.
         
         Parameters:
             kwargs:
@@ -649,7 +841,7 @@ class LargeNumber(Decimal):
             >>> LargeNumber(-123456)._calculate_number_parts()
             {0: '56', 2: '4', 3: '-123', -1: '0'}
             >>> LargeNumber("100.72")._calculate_number_parts()
-            {2: '1', -1: '0.72'}
+            {2: '1', -2: '72'}
         """
         max_iterations = kwargs.get('max_iterations', -1)
         num_decimals = kwargs.get('num_decimals', None)
@@ -667,7 +859,11 @@ class LargeNumber(Decimal):
         input = self.input
         num_output = {}
         num_exp = 1
-        first_run = True       
+        
+        negative_num = False
+        if input < 0:
+            negative_num = True
+            input *= -1
         
         #Get multiplier from the min_amount variable
         min_amount_multiplier = Decimal(('%.2E'%min_amount).split('E')[0])
@@ -703,10 +899,19 @@ class LargeNumber(Decimal):
             current_multiplier = pow(Decimal(10), Decimal(num_exp))
             current_output = input/current_multiplier
             
+            if count == 1 and negative_num:
+                current_output *= -1
+            
+            #Stop on first run if 0.x
+            if input < 1 and count == 1:
+                num_digits = 1
+                num_output[0] = 0
+                break
+                
             #Add to output
             if len(num_output)+1 > max_iterations and max_iterations >= 0:
                 current_output = self._round_with_precision(current_output, num_decimals, force_decimals)
-                num_output[num_exp] = (str(current_output))
+                num_output[num_exp] = current_output
                 input = 0
                 break
                 
@@ -714,19 +919,38 @@ class LargeNumber(Decimal):
                 
                 #Continue
                 num_output[num_exp] = (str(current_output).split('.')[0])
-                input = input%pow(Decimal(10), Decimal(num_exp))
+                input %= pow(Decimal(10), Decimal(num_exp))
             
             #Make number positive after first run
             if input < 0:
                 input *= -1
                 
-        num_output[-1] = str(input)
+        #Get fractional value
+        input = Decimal(self._round_with_precision(Decimal(input), num_decimals, force_decimals))
+        
+        if input:
+            min_offset = input.logb()
+            num_digits -= min_offset
+            num_digits = -min_offset+1
+            num_exp = self._find_matching_exp(-num_digits, self.all_available_numbers)
+            input /= pow(Decimal(10), Decimal(num_exp))
+            
+            
+        else:
+            num_exp = -1
+            input = 0
+            
+        num_output[num_exp] = str(self.remove_exponent(input))
+        '''
+        if len(num_output) == 1:
+            num_output[-1] = 0
+            '''
         
         #Re-run the code if only one iteration is output (basically a fix for low min_amount not working)
         if len(num_output) == 2 and min_amount != Decimal(str(kwargs.get('min_amount', 1))) and max_iterations != 0:
             kwargs['max_iterations'] = 0
             num_output = self._calculate_number_parts(**kwargs)
-        
+            
         return num_output
 
     
@@ -804,26 +1028,27 @@ class LargeNumber(Decimal):
                 use_fractions:
                     Default: False
                     Attempts to convert a decimal point into a fraction through a brute force method.
-                    Will also attempt to calculate a prefix.
-                    For now, it will only work if decimals is enabled, as I haven't coded in the word representations for everything.
-                    Due to the precision of floating point numbers, any recurring numbers must be input as a string or calculated
-                     in the Decimal format.
-                    It appears to require 16 decimals, where as floating point division gives you 12.
+                    If that fails, it will rationalise the denominator and output something like 26.5 hundredths.
+                    Will also calculate the correct prefix.
+                    
+                    Any recurring numbers must be input as a string or calculated, since floating point division isn't
+                    accurate enough to be picked up.
+                    It appears to require a precision of 16 decimals, where as floating point division gives you 12.
                     
                     >>> LargeNumber(7654321.5).to_text(use_fractions=True)
-                    '7 million, 654 thousand, 3 hundred and 21 and 1/2'
+                    '7 million, 654 thousand, 3 hundred, 21 and 1/2'
                     >>> LargeNumber(7654321.75).to_text(use_fractions=True)
-                    '7 million, 654 thousand, 3 hundred and 21 and 3/4'
+                    '7 million, 654 thousand, 3 hundred, 21 and 3/4'
                     >>> LargeNumber(7654321.39).to_text(use_fractions=True)
-                    '7 million, 654 thousand, 3 hundred and 21 and 39/100ths'
+                    '7 million, 654 thousand, 3 hundred, 21 and 39/100ths'
                     >>> LargeNumber(7654321.383).to_text(use_fractions=True)
-                    '7 million, 654 thousand, 3 hundred and 21.383'
+                    '7 million, 654 thousand, 3 hundred, 21 and 38.3 hundredths'
                     >>> LargeNumber(1.0/3.0).to_text(use_fractions=True)
-                    '0.333333333333'
+                    '33.3333333333 hundredths'
                     >>> LargeNumber(Decimal(1)/Decimal(3)).to_text(use_fractions=True)
                     '1/3rd'
                     >>> LargeNumber('0.333333333333333').to_text(use_fractions=True)
-                    '0.333333333333333'
+                    '33.3333333333333 hundredths'
                     >>> LargeNumber('0.3333333333333333').to_text(use_fractions=True)
                     '1/3rd'
                     
@@ -833,11 +1058,11 @@ class LargeNumber(Decimal):
                     Determines the maximum value it will search for.
                     
                     >>> LargeNumber(7654321.39).to_text(use_fractions=True, fraction_precision=100)
-                    '7 million, 654 thousand, 3 hundred and 21 and 39/100ths'
+                    '7 million, 654 thousand, 3 hundred, 21 and 39/100ths'
                     >>> LargeNumber(7654321.39).to_text(use_fractions=True, fraction_precision=50)
-                    '7 million, 654 thousand, 3 hundred and 21.39'
+                    '7 million, 654 thousand, 3 hundred, 21 and 39 hundredths'
                     >>> LargeNumber(7654321.393).to_text(use_fractions=True, fraction_precision=1000)
-                    '7 million, 654 thousand, 3 hundred and 21 and 393/1000ths'
+                    '7 million, 654 thousand, 3 hundred, 21 and 393/1000ths'
                     
                 num_decimals:
                     Default: None (inifinite with no extra zeroes)
@@ -887,7 +1112,7 @@ class LargeNumber(Decimal):
                     >>> LargeNumber(100).to_text(max_iterations=0, force_decimals=True, num_decimals=2, min_decimals=4)
                     '1.0000 hundred'
                     >>> LargeNumber(0.31643).to_text(force_decimals=True, num_decimals=2, min_decimals=4)
-                    '0.0300'
+                    '0.3200'
         
         
         General Examples:
@@ -905,7 +1130,7 @@ class LargeNumber(Decimal):
             'one hundred point five'
             >>> LargeNumber(100.5).to_text(min_amount=10)
             '100.5'
-            >>> LargeNumber(100.5).to_text(min_amount=0.1)
+            >>> LargeNumber(100.5).to_text(min_amount=0.01)
             '0.1005 thousand'
             >>> LargeNumber(100.5).to_text(digits=False, min_amount=0.1, num_decimals=2)
             'zero point one zero thousand'
@@ -949,7 +1174,7 @@ class LargeNumber(Decimal):
             >>> LargeNumber(0.25).to_text(use_fractions=True, fraction_precision=4)
             '1/4'
             >>> LargeNumber(0.25).to_text(use_fractions=True, fraction_precision=3)
-            '0.25'
+            '25 hundredths'
             >>> LargeNumber(0.2).to_text(use_fractions=True)
             '1/5th'
         """
@@ -966,26 +1191,36 @@ class LargeNumber(Decimal):
         
         num_name = []
         num_name_joined = ''
-        num_output = self._calculate_number_parts(**kwargs)
+        
+        #Give a custom number parts output
+        num_output = kwargs.get('_custom_num_output', None)
+        if not num_output:
+            num_output = self._calculate_number_parts(**kwargs)
         
         #Get remaining decimals for later and remove from output
-        remaining_decimals = Decimal(num_output.pop(-1))
+        decimal_key = sorted(num_output.keys())[0]
+        remaining_decimals = Decimal(num_output.pop(decimal_key))
         
         #Fix for values between 0 and 1
-        if not num_output:
+        if not num_output and num_output.get(0, None) is None:
             num_output[0] = 0
-        
+            
         #Fix to merge decimal with lowest exponential value to stop errors such as 1.000.35
-        if force_decimals and remaining_decimals and num_output.get(0, 0):
+        if force_decimals and remaining_decimals and num_output.get(0, 0) and not use_fractions:
             only_exponential = sorted(num_output.keys())[0]
-            num_output[only_exponential] = str(self._round_with_precision(str(Decimal(num_output[only_exponential])+
-                                                                              Decimal(remaining_decimals)*
-                                                                              Decimal('0.'+'0'*(only_exponential-1)+'1')),
-                                                                          num_decimals, force_decimals))
+            num_output[only_exponential] = self._round_with_precision(str(Decimal(num_output[only_exponential])+
+                                                                          Decimal(remaining_decimals)*
+                                                                          Decimal('0.'+'0'*(only_exponential-1)+'1')),
+                                                                      num_decimals, force_decimals)
             remaining_decimals = 0
-    
+        
         #Convert numbers to words
         sorted_keys = sorted(num_output.keys())[::-1]
+        
+        new_kwargs = kwargs.copy()
+        new_kwargs['decimal_key'] = decimal_key
+        new_kwargs['print_warning'] = True
+        
         for i in sorted_keys:
             current_value = num_output[i]
             additional_value = ''
@@ -994,7 +1229,7 @@ class LargeNumber(Decimal):
             
             #Avoid using fractions if using prefix (eg. 0.5 billion not 1/2 billion)
             should_use_fractions = use_fractions
-            if i:
+            if i and not kwargs.get('_custom_num_output', None):
                 should_use_fractions = False
             
             #Add decimals only if it's the last number, and there's not remaining decimals
@@ -1030,25 +1265,26 @@ class LargeNumber(Decimal):
                         if min_decimals > num_decimal_points:
                             current_value += '0'*(min_decimals-num_decimal_points)
             
-            text_num = NumberNames.num_to_text(current_value, as_digits, 
-                                   use_fractions=should_use_fractions, 
-                                   fraction_precision=fraction_precision,
-                                   print_warning=True) + additional_value
-           
+            
+            new_kwargs['use_fractions'] = should_use_fractions
+            
+            text_num = NumberNames.num_to_text(current_value, as_digits, **new_kwargs) + additional_value
             
             #Fix for min_amount under 0
             if i and current_value[:10] == 'zero point':
                 text_num = text_num[5:]
                 
             num_name.append(text_num)
-        
+            
+            
         #Join list
         if len(num_name)-1:
             num_name_joined += ', '.join(num_name[:-1])
+        
         #If there are decimals, and it's not the units value, don't use a final and
         #For example, '465 thousand and 4 hundred and 0.24' to '465 thousand, 4 hundred and 0.24'
         if num_name_joined:
-            if remaining_decimals and as_digits and num_output.get(0, None) != num_name[-1]:
+            if remaining_decimals and ((as_digits and num_output.get(0, None) != num_name[-1]) or use_fractions):
                 num_name_joined += ', '
             else:
                 num_name_joined += ' and '
@@ -1063,22 +1299,38 @@ class LargeNumber(Decimal):
                     remaining_decimals += '0'*num_decimals
                 else:
                     remaining_decimals += '0'
-            
+                    
             #Convert to text
-            remaining_decimals = self._round_with_precision(remaining_decimals, num_decimals, force_decimals)
-                            
-            decimal_num = NumberNames.num_to_text(remaining_decimals, as_digits, 
-                                      use_fractions=use_fractions, 
-                                      fraction_precision=fraction_precision,
-                                      only_return_decimal=True,
-                                      print_warning=True)
+            remaining_decimals = Decimal(self._round_with_precision(remaining_decimals, num_decimals, force_decimals))
+            remaining_decimals *= pow(Decimal('10'), Decimal(decimal_key))
+            
+            #Remove extra zeroes
+            if num_decimals is None:
+                remaining_decimals = str(remaining_decimals)
+                if '.' in remaining_decimals:
+                    remaining_decimals = remaining_decimals.rstrip('0')
+                    if remaining_decimals[-1] == '.':
+                        remaining_decimals += '0'
+                remaining_decimals = Decimal(remaining_decimals)
+            
+            new_kwargs = kwargs.copy()
+            new_kwargs['print_warning'] = True
+            new_kwargs['use_fractions'] = use_fractions
+            new_kwargs['only_return_decimal'] = True
+            new_kwargs['decimal_key'] = decimal_key
+            
+            decimal_num = NumberNames.num_to_text(remaining_decimals, as_digits, **new_kwargs)
             
             #Add space before 'point five'
             if not as_digits:
-                decimal_num = ' '+decimal_num
+                if use_fractions:
+                    pass
+                    #decimal_num = ' and '+decimal_num
+                else:
+                    decimal_num = ' '+decimal_num
             
             #Fix to stop fractions not removing a zero (eg. 0 and 2/5ths should be 2/5ths)
-            if '/' in decimal_num:
+            if use_fractions:
                 if num_name_joined and num_name_joined != '0':
                     num_name_joined += ' and '
                 else:
@@ -1086,13 +1338,13 @@ class LargeNumber(Decimal):
             
             #Fix if there are no units (1 hundred.5 to 1 hundred and 0.5)
             if 0 not in num_output:
-                if as_digits and '/' not in decimal_num:
+                if as_digits and not use_fractions:
                     num_name_joined += ' and 0'
                 else:
                     pass
                     #'one hundred point five' works, leaving this note here in case it needs to change
                     #num_name_joined += ' and zero'
-                
+            
             num_name_joined += decimal_num
         
         return num_name_joined
