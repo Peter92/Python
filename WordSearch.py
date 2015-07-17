@@ -29,7 +29,37 @@ def list_to_text(value, connector=''):
         else:
             return ', '.join(value)
     return ''
+    
+def encode_binary(x):
+    """Encode a string of 1s and 0s to shorten it down.
+    Use base 64 to make it readable.
+    
+    >>> encoded = encode_binary('1000010101110010111010000011011111001110101000100010111000100110')
+    >>> base64.b64encode(encoded)
+    'AIVy6DfOoi4m'
+    """
+    if x.replace('0', '').replace('1', ''):
+        raise TypeError('input must be in binary')
+    x_binary = [x[i:i+8] for i in range(0, len(x), 8)]
+    x_padding = 8-len(x_binary[-1])
+    x_padding_binary = '{0:08b}'.format(x_padding)
+    x_binary = [x_padding_binary] + x_binary
+    x_binary[-1] += '0'*x_padding
+    return ''.join(chr(int(i, 2)) for i in x_binary)
 
+def decode_binary(x):
+    """Decode the output from the encode_binary function.
+    
+    >>> encoded = base64.b64decode('AIVy6DfOoi4m')
+    >>> decode_binary(encoded)
+    '1000010101110010111010000011011111001110101000100010111000100110'
+    """    
+    x_data = [ord(i) for i in list(x)]
+    x_padding = x_data.pop(0)
+    x_binary = ['{0:08b}'.format(i) for i in x_data]
+    x_binary[-1] = x_binary[-1][:8-x_padding]
+    return ''.join(x_binary)
+    
 class DifficultyLevels:
     """Set which directions each difficulty level activates.
     More levels may be added, though make sure they are in order since the Difficulty function can also work by index.
@@ -84,7 +114,7 @@ class WordSearch(object):
     
     >>> ws = WordSearch(10, 10, 'easy')
     >>> ws.generate(['words','example','generate','hard','easy','search'])
-    WordSearch(data='eJw1j90OwyAIhV/IC7Eo4tuQSnTJ1jbYpNvbz2XbDX/ngxxERGoXq1s79CmP466qo7Yxo1jrpm2bpV67yTWBl5mq7TaTHJ9F0VVOHavWUyc9kWOoaJc6mm5qU3SIERMSZoQc8pIx++iTJ58DLYQUKRERBFgAIUIC4sALI0dOTJyZHXg3z9raS6BS92tz01EdBfHbfV4osdit9dP9HikQ/gMZrwL5i/5tFf7Jb58BV2g=')
+    WordSearch(data='eJw1jjsOwkAMRBvEp6LlAJRbkCgIcMVVrOxoFwk2KztSSMsF4IgcgSPgKEnj3zzbw8zsI4tPIePJj3wHoD6oRZYQBSFZia4R7gzoRQBpxBLnYZFRcwut4VsYbUhWMCJ7DUgQE91i9f7ulpvX9bNfb3+uODhDpI5Unsg3XXJ23StV1dgNduhIcguxdZMpKsp5wNpTcR7R+QVdJvkPC2hN1g==')
     
     >>> ws.display()
     a a a a d h a r d n
@@ -154,7 +184,13 @@ class WordSearch(object):
         if data is not None:
             data_parts = zlib.decompress(base64.b64decode(data)).split(',')
             self.grid = [i if i != '_' else '' for i in data_parts[0]]
-            self.filled_cells = data_parts[1]
+            filled_ids = decode_binary(data_parts[1])
+            self.filled_cells = []
+            for i in range(len(filled_ids)):
+                if filled_ids[i] == '1':
+                    self.filled_cells.append(i)
+            #self.filled_cells = data_parts[1]
+            
             width = int(data_parts[2])
             height = len(self.grid)/width
             self.used_words = {k:(int(v1), v2) for k, v1, v2 in [i.split(':') for i in data_parts[3:]]}
@@ -171,9 +207,7 @@ class WordSearch(object):
             self.grid = ['' for i in self.grid_ids]
             self.filled_cells = []
             self.used_words = {}
-        else:
-            self.filled_cells = [int(self.filled_cells[i:i+self.max_id_len]) for i in range(0, len(self.filled_cells), self.max_id_len)]
-        
+            
         #Complete the direction calculations now that width is given
         self.direction_move_amount['down'] = self.width
         self.direction_move_amount['up'] = -self.width
@@ -184,8 +218,16 @@ class WordSearch(object):
     
     def __repr__(self):
         """Encode all important data into a string."""
-        output = [''.join(i if i else '_' for i in self.grid), ''.join(str(i).zfill(self.max_id_len) for i in self.filled_cells), self.width]
+        
+        filled_ids = []
+        for i in range(self.width*self.height):
+            filled_ids.append(str(int(i in self.filled_cells)))
+        
+        output = [''.join(i if i else '_' for i in self.grid), 
+                  encode_binary(''.join(filled_ids)),
+                  self.width]
         output += [':'.join((k, str(v[0]), v[1])) for k,v in self.used_words.iteritems()]
+        
         return "WordSearch(data='{o}')".format(o=base64.b64encode(zlib.compress(','.join(str(i) for i in output))))
     
     def difficulty(self, value):
