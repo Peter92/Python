@@ -14,3 +14,8 @@ for i in num_exp_hundreds:
 
 #short version
 a=[''];m,n,o,p,q,r,s,t,u,v,w,x,y,z='illion quadr quin sex sept oct non ing ag g tre duo c t'.split();l=['thousand']+[i+m for i in['m','b','tr',n,o+z,p+z,q,r,s]]+[i+j+k for i in a+[i+'en'for i in[y,x+y,w+y,n+t,o+v,'sesc',q+t,r+t,s+v]] for k in [C+m for C in['t','dec']+[B+'int'for B in['vig','trig',n+u,o+'quag',p+u,q+'uag',r+v,s+u]]][not i:]for j in a+['un',x,w,'quattor',o,p,q+'ten',r+'o','novem']]
+
+
+
+X='-1'+'9'*5010
+m,n,o,p,q,r,s,t,u,v,w,x,y,z='illion quadr quin sex sept oct non ing ag g tre duo c t'.split();a=[''];l=a+['thousand']+[i+m for i in['m','b','tr',n,o+z,p+z,q,r,s]]+[i+j+k for i in a+[i+'en'for i in[y,x+y,w+y,n+t,o+v,'sesc',q+t,r+t,s+v]]for k in[C+m for C in['t','dec']+[B+'int'for B in['vig','trig',n+u,o+'quag',p+u,q+'uag',r+'og',s+u]]][not i:]for j in a+['un',x,w,'quattor',o,p,q+'en',r+'o','novem']];N=str(X).split('.');E=min(1000,(len(N[0].replace('-',''))-1)/3);P=N[0][:(-E*3 if E else len(N[0]))];B=''.join(N);L=len(P);O=round(float((P+'.'+((B[L:L+2])or'0'))));print O,l[E]
