@@ -1,21 +1,6 @@
-'''
-RecursiveDict(input_dict):
-    write(self, path, value=None, overwrite=True, overwrite_end=True)
-    get(self, path)
-split_list
-flatten_list
-get_max_dict_keys
-join_words
-ucfirst
-list_to_text(value, connector='', comma=',', last_comma=False)
-with TimeThis() as t:
-    t.output()
-read_config(config_filename, config_sections=None, write_values=False, update_values=False)
-'''
 import os
 import time
 import string
-#import ConfigParser
 import sys
 import cPickle
 from collections import defaultdict
