@@ -20,7 +20,20 @@ class GameOfLife(object):
            
         if 'lowest_x_val' not in self.store_data or coordinate[0] < self.store_data['lowest_x_val']:
             self.store_data['lowest_x_val'] = coordinate[0]
-                
+    
+    def load_preset(self, name, clear=True):
+        if clear:
+            self = GameOfLife()
+        
+        #Add more from bitstorm.org/gameoflife later
+        if name == 'exploder':
+            for y in range(5):
+                self.add((0, y))
+                self.add((4, y))
+            self.add((2, 0))
+            self.add((2, 4))
+            
+        return self
 
     def remove(self, coordinate):
         if coordinate[1] in self.game_data and coordinate[0] in self.game_data[coordinate[1]]:
@@ -77,10 +90,17 @@ class GameOfLife(object):
     
     
     def display(self):
-        for y in sorted(self.game_data.keys()):
+            
+        for y in range(min(self.game_data), max(self.game_data) + 1):
             output = ''
             last_x = self.store_data['lowest_x_val']
-            for x in sorted(list(self.game_data[y])):
-                output += ' ' * max(0, (x - last_x)) + 'x'
+            
+            if y in self.game_data:
+                x_list = sorted(self.game_data[y])
+            else:
+                x_list = []
+            
+            for x in x_list:
+                output += ' ' * max(0, 2 * (x - last_x) + 1) + 'x'
                 last_x = x + 1
             print output
