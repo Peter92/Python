@@ -1,32 +1,57 @@
 from collections import defaultdict
 class GameOfLife(object):
     
-    adjacent = ((-1,-1), (0,-1), (1,-1),
+    ADJACENT = ((-1,-1), (0,-1), (1,-1),
                 (-1, 0),         (1, 0),
                 (-1, 1), (0, 1), (1, 1))
-
-    alive_cell = 'o'
-    dead_cell = '.'
+    CELL = {'Alive': 'o',
+            'Dead': '.'}
+    ALL_NEIGHBOURS = range(9)
     
-    def __init__(self, rule='B3/S23'):
+    def __init__(self, rule='B3/S23', paste=None):
         """Setup an empty Game Of Life object."""
         self._reset()
-        self.new_rule()
+        self.new_rule(rule)
+        if paste is not None:
+            self.paste(paste)
 
     def _reset(self):
         self.game_data = {}
         self.generations = 0
 
-    def new_rule(self, rule='B3/S23'):
-        """Store the information for a new rule."""
-        rules = rule.split('/')
+    def new_rule(self, rule):
+        """Store the information for a new rule.
         
-        for i in range(len(rules)):
-            if rules[i].lower().startswith('b'):
-                self.rule_born = map(int, list(rules[i][1:]))
+        This works by reading the rule one character at a time, and will
+        """
+        self.rule_born = self.rule_alive = current_rule = None
+        
+        for char in rule.lower():
+            if not char.isdigit():
+                if char == 's':
+                    if self.rule_alive is None:
+                        self.rule_alive = []
+                    current_rule = self.rule_alive.append
+                elif char == 'b':
+                    if self.rule_born is None:
+                        self.rule_born = []
+                    current_rule = self.rule_born.append
+                else:
+                    current_rule = None
+            elif current_rule is not None:
+                current_rule(int(char))
                 
-            elif rules[i].lower().startswith('s'):
-                self.rule_alive = map(int, list(rules[i][1:]))
+        self._validate_rules()
+        
+        #Remove any extra values to speedup the checks
+        self.rule_born = tuple(i for i in self.rule_born if i in self.ALL_NEIGHBOURS)
+        self.rule_alive = tuple(i for i in self.rule_alive if i in self.ALL_NEIGHBOURS)
+            
+    def _validate_rules(self):
+        """Check the rules contain valid values."""
+        if self.rule_born is None or self.rule_alive is None:
+            raise AttributeError("rule must be in the format 'B#S#'")
+        
     
     def paste(self, cells, offset=(0, 0), clear=False):
         """Paste a string to act as cells.
@@ -36,20 +61,13 @@ class GameOfLife(object):
         """
         if clear:
             self._reset()
-            
-        y = None
-        for line in cells.splitlines():
-
-            #Ignore any initial empty lives
-            if y is not None:
-                y += 1
-            elif line and y is None:
-                y = 0
-
-            for x in range(len(line)):
-                if line[x] == self.alive_cell:
+        
+        lines = cells.strip('\n').splitlines()
+        for y in range(len(lines)):
+            for x in range(len(lines[y])):
+                if lines[y][x] == self.CELL['Alive']:
                     self.add((x + offset[0], y + offset[1]))
-                elif line[x] == self.dead_cell:
+                elif lines[y][x] == self.CELL['Dead']:
                     self.remove((x + offset[0], y + offset[1]))
                     
             
@@ -92,7 +110,7 @@ class GameOfLife(object):
             for x in self.game_data[y]:
                 num_adjacent = 0
                 
-                for i in self.adjacent:
+                for i in self.ADJACENT:
                     c = (x + i[0], y + i[1])
                     if (c[1] in self.game_data
                         and c[0] in self.game_data[c[1]]):
@@ -106,7 +124,7 @@ class GameOfLife(object):
             if coordinate not in adjacent_amount:
                 num_adjacent = 0
                 
-                for i in self.adjacent:
+                for i in self.ADJACENT:
                     c = (coordinate[0] + i[0],
                          coordinate[1] + i[1])
                     if (c[1] in self.game_data
@@ -119,6 +137,7 @@ class GameOfLife(object):
     
     def step(self, n=1):
         """Move forward n steps in the generation."""
+        self._validate_rules()
         
         for i in range(n):
             
