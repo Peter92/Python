@@ -53,14 +53,30 @@ class GameOfLife(object):
             raise AttributeError("rule must be in the format 'B#S#'")
         
     
-    def paste(self, cells, offset=(0, 0), clear=False):
+    def paste(self, cells=None, offset=(0, 0), clear=False, pattern=None):
         """Paste a string to act as cells.
 
         Use 'o' to bring a cell to live, and '.' to kill a cell.
         An empty space will not modify the cell under it.
+        
+        If no cells or pattern variable is input, no error will be 
+        given since the code will still run fine without.
         """
         if clear:
             self._reset()
+        
+        #Check for certain strings
+        if pattern is not None:
+            pattern = pattern.lower()
+            if pattern == 'exploder':
+                cells = """
+                        o.o.o
+                        o...o
+                        o...o
+                        o...o
+                        o.o.o
+                        """
+                offset = (-22 + offset[0], 0 + offset[1])
         
         lines = cells.strip('\n').splitlines()
         for y in range(len(lines)):
