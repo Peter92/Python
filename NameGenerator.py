@@ -221,7 +221,7 @@ class WordGenerator(object):
             result.append('. '.join(current_paragraph))
         return '\r\n'.join(result)
 try:
-    old_cache = a.cache
+    old_cache = word_gen.cache
 except NameError:
     word_gen = WordGenerator(40)
 else:
