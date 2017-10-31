@@ -138,25 +138,26 @@ allow_diagonal_spaces = False
 grid_str = """
 ________________
 ____0___________
-_0000000________
+_000000_________
 __e_0_______0___
-_____000_____0__
+_____000________
 __000_____0000_0
 __0___0__00_0_s0
 _________0____00
 """
 grid_str = """
-__0000____s______0______
-___________00_____00____
+__0_______s______0______
+____000000000_____00____
 _____0______________000_
-_____0__0____00____00___
-______0___0____00000____
-___00000__0_____0____000
-______0__00___000___0_00
-___00__0____00___0___00_
-_____00__000000_________
+0000___00___000____00___
+______0___00___00000____
+_00000000_0__________000
+_________00___000___0_00
+00000__0____00___0___00_
+_____00_0000000_________
 ____0000_________00_____
 ___e____0000000__0000000
+________________________
 """
 grid = []
 walls = set()
@@ -230,41 +231,44 @@ def find_path(grid, start, end, use_border=True, ignore_diagonal_walls=False, _v
 def optimise_path(path):
 
     path_len = len(path)
-    steps = []
-    i = 3
-
 
     #Calculate the step sizes
+    i = 3
+    steps = []
     while True:
         step = 2 ** i
         if step > path_len:
+            steps.pop()
             break
         steps.append(step)
         i += 1
-        
+
+    #Build list of step sizes and offsets
+    step_list = [(size, i * size // 2) for size in steps[::-1] for i in range(2)]
+    step_list.append((3, 0))
+    step_list.append((3, 1))
+    step_list.append((3, 2))
+    
     #Optimise the path
-    for step_size in steps[::-1]:
+    for step_size, step in step_list:
 
-        #Iterate twice (eg. 0-4, 4-8 then 2-6, 6-10)
-        for i in range(2):
-            step = i * step_size // 2
-            while step < path_len:
+        while step < path_len:
 
-                #Calculate path indexes
-                start = step
-                step += step_size
-                end = step
-                if step > path_len:
-                    start = path_len - step_size
-                    end = path_len - i * step_size // 2
+            #Calculate path indexes
+            start = step
+            step += step_size
+            end = step
+            if step > path_len:
+                start = path_len - step_size
+                end = path_len - i * step_size // 2
 
-                #Only replace old path if new path is shorter
-                try:
-                    new_path = find_path(grid, path[start], path[end-1])
-                    if len(new_path) <= step_size:
-                        path = path[:start] + new_path + path[end:]
-                except IndexError:
-                    pass
+            #Only replace old path if new path is shorter
+            try:
+                new_path = find_path(grid, path[start], path[end-1])
+                if len(new_path) <= step_size:
+                    path = path[:start] + new_path + path[end:]
+            except IndexError:
+                pass
     return path
 
 def find_alternate_path(path, max_tries=100):
