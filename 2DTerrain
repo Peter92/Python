@@ -1,0 +1,85 @@
+from __future__ import division
+from PIL import Image
+import numpy
+import random
+from noise import pnoise2, snoise2
+
+w, h = 1920, 1080
+data = numpy.zeros((h, w, 3), dtype=numpy.uint8)
+
+_offset = (random.randint(-1000000, 10000000), random.randint(-1000000, 10000000))
+
+def _pnoise(x, y, scale, octaves):
+    x += _offset[0]
+    y += _offset[1]
+    return pnoise2(x*scale, y*scale, octaves=octaves) + 0.5
+def _snoise(x, y, scale, octaves):
+    x += _offset[0]
+    y += _offset[1]
+    return snoise2(x*scale, y*scale, octaves=octaves) + 0.5
+
+def to_noise(x, y, scale=1, octaves=8):
+    base = _snoise(x, y, 0.01*scale, octaves) * _pnoise(x, y, 0.02*scale, octaves)
+    base += _pnoise(x, y, 0.005*scale, octaves) * 0.9
+    base -= _pnoise(x, y, 0.07*scale, octaves) * 0.1
+    total = 1 - base
+
+    #Water
+    if total < 0.5:
+        total += _pnoise(x, y, 0.08*scale, octaves) * _pnoise(x, y, 0.004*scale, octaves)
+        return (0, 0, total)
+
+    #Normalise ground values
+    total -= 0.5
+    total *= 2
+    total = min(1, total)
+
+    #Mountains
+    if total > 0.5:
+        if total > 0.65 or _pnoise(x, y, 0.04*scale, octaves) > 0.4:
+            #total -= 0.5
+            #total *= 2
+            #total += 0.2 * (1-total)
+            return (total, total, total)
+
+        #Reverse the noise
+        total = 1 - total
+
+    #Ground
+    total *= _pnoise(x, y, 0.2*scale, octaves) + _pnoise(x, y, 0.13*scale, octaves)
+
+    #Sand
+    if total < 0.1:
+        if _pnoise(x, y, 0.02*scale, octaves) > 0.5:
+            return (total + 0.5, total + 0.5, 0)
+
+    #Forest
+    if _pnoise(x, y, 0.04*scale, octaves) > 0.46:
+        if _pnoise(x, y, 0.2*scale, octaves) > 0.25:
+            total += total * 0.7 * _pnoise(x, y, 2*scale, octaves) * _pnoise(x, y, 5*scale, octaves)
+            return (0, total, 0)
+    #Grass
+    total += total * 0.6 * _pnoise(x, y, 0.7*scale, octaves)
+    total += total * 0.7 * _pnoise(x, y, 2*scale, octaves) * _pnoise(x, y, 6*scale, octaves) * _pnoise(x, y, 18*scale, octaves)
+    return (0, max(0, total) ** 0.5 + 0.2, 0)
+    
+
+offset = (423, 0)
+scale = 0.35
+
+for i in range(w):
+    for j in range(h):
+        result = to_noise(i+offset[0]/scale, j+offset[1]/scale, scale=scale, octaves=64)
+        if isinstance(result, tuple):
+            result = (min(255, max(0, int(result[0] * 255))),
+                      min(255, max(0, int(result[1] * 255))),
+                      min(255, max(0, int(result[2] * 255))))
+        else:
+            result = min(255, max(0, result))
+        data[j][i] = result
+
+def show_image(data):
+    img = Image.fromarray(data, 'RGB')
+    img.show()
+    img.save('1080p 64oct.png')
+show_image(data)
