@@ -1,0 +1,225 @@
+from __future__ import division
+
+def get_offsets(direction_to_end, x_major):
+    
+    offsets = []
+    if not all(direction_to_end):
+        for method in range(8):
+            if method == 0:
+                x_offset = 0 if not direction_to_end[0] else 1 if direction_to_end[0] > 0 else -1
+                y_offset = 0 if not direction_to_end[1] else 1 if direction_to_end[1] > 0 else -1
+            if method == 1:
+                if x_major:
+                    x_offset = 1 if direction_to_end[0] > 0 else -1
+                    y_offset = 1
+                else:
+                    x_offset = 1
+                    y_offset = 1 if direction_to_end[1] > 0 else -1
+            if method == 2:
+                if x_major:
+                    x_offset = 1 if direction_to_end[0] > 0 else -1
+                    y_offset = -1
+                else:
+                    x_offset = -1
+                    y_offset = 1 if direction_to_end[1] > 0 else -1
+            if method == 3:
+                if x_major:
+                    x_offset = 0
+                    y_offset = 1
+                else:
+                    x_offset = 1
+                    y_offset = 0
+            if method == 4:
+                if x_major:
+                    x_offset = 0
+                    y_offset = -1
+                else:
+                    x_offset = -1
+                    y_offset = 0
+            if method == 5:
+                if x_major:
+                    x_offset = -1 if direction_to_end[0] > 0 else 1
+                    y_offset = 1
+                else:
+                    x_offset = 1
+                    y_offset = -1 if direction_to_end[1] > 0 else 1
+            if method == 6:
+                if x_major:
+                    x_offset = -1 if direction_to_end[0] > 0 else 1
+                    y_offset = 0
+                else:
+                    x_offset = 0
+                    y_offset = -1 if direction_to_end[1] > 0 else 1
+            if method == 7:
+                if x_major:
+                    x_offset = -1 if direction_to_end[0] > 0 else 1
+                    y_offset = -1
+                else:
+                    x_offset = -1
+                    y_offset = -1 if direction_to_end[1] > 0 else 1
+            offsets.append((x_offset, y_offset))
+    else:
+        for method in range(8):
+            #1, 1
+            if method == 0:
+                x_offset = 1 if direction_to_end[0] > 0 else -1
+                y_offset = 1 if direction_to_end[1] > 0 else -1
+            #0, 1
+            if method == 3:
+                if x_major:
+                    x_offset = 0
+                    y_offset = 1 if direction_to_end[1] > 0 else -1
+                elif not x_major:
+                    x_offset = 1 if direction_to_end[0] > 0 else -1
+                    y_offset = 0
+                else:
+                    print 'fail'
+                    continue
+            #1, 0
+            if method == 1:
+                if not x_major:
+                    x_offset = 0
+                    y_offset = 1 if direction_to_end[1] > 0 else -1
+                elif x_major:
+                    x_offset = 1 if direction_to_end[0] > 0 else -1
+                    y_offset = 0
+                else:
+                    print 'fail', method
+                    continue
+            #0, -1
+            if method == 4:
+                if x_major:
+                    x_offset = 0
+                    y_offset = -1 if direction_to_end[1] > 0 else 1
+                elif not x_major:
+                    x_offset = -1 if direction_to_end[0] > 0 else 1
+                    y_offset = 0
+                else:
+                    print 'fail'
+                    continue
+            #-1, 0
+            if method == 7:
+                if not x_major:
+                    x_offset = 0
+                    y_offset = -1 if direction_to_end[1] > 0 else 1
+                elif x_major:
+                    x_offset = -1 if direction_to_end[0] > 0 else 1
+                    y_offset = 0
+                else:
+                    print 'fail', method
+                    continue
+            #1, 1
+            if method == 6:
+                x_offset = -1 if direction_to_end[0] > 0 else 1
+                y_offset = -1 if direction_to_end[1] > 0 else 1
+            #1, -1
+            if method == 2:
+                if x_major:
+                    x_offset = 1 if direction_to_end[0] > 0 else -1
+                    y_offset = -1 if direction_to_end[1] > 0 else 1
+                else:
+                    x_offset = -1 if direction_to_end[0] > 0 else 1
+                    y_offset = 1 if direction_to_end[1] > 0 else -1
+            #-1, 1
+            if method == 5:
+                if x_major:
+                    x_offset = -1 if direction_to_end[0] > 0 else 1
+                    y_offset = 1 if direction_to_end[1] > 0 else -1
+                else:
+                    x_offset = 1 if direction_to_end[0] > 0 else -1
+                    y_offset = -1 if direction_to_end[1] > 0 else 1
+
+            offsets.append((x_offset, y_offset))
+    return offsets
+
+use_bounds = True
+grid_str = """
+________________
+________________
+_00000__________
+__e_00__________
+______000_______
+__000_____0000_0
+__________0_0_s0
+_________0____00
+"""
+grid = []
+walls = set()
+for i, line in enumerate(grid_str.strip().split('\n')):
+    new_line = []
+    for j, char in enumerate(line):
+        if char == '_':
+            new_line.append(False)
+        elif char == '0':
+            new_line.append(True)
+            walls.add((j, i))
+        elif char == 's':
+            new_line.append(False)
+            start = (j, i)
+        elif char == 'e':
+            new_line.append(False)
+            end = (j, i)
+    grid.append(new_line)
+height = len(grid)
+width = len(grid[0])
+            
+print 'start', start
+print 'end', end
+direction = (end[0] - start[0], end[1] - start[1])
+print 'direction', direction
+
+path = [start]
+visited = set(path)
+
+current_location = start
+for _ in range(100):
+    direction_to_end = (end[0] - path[-1][0], end[1] - path[-1][1])
+    if direction_to_end == (0, 0):
+        print 'yey'
+        break
+
+    print 'Finding next path for {}...'.format(path[-1])
+    found_location = False
+
+    x_major = abs(direction_to_end[0]) == max(abs(direction_to_end[0]), abs(direction_to_end[1]))
+
+    found_location = False
+    for offset in get_offsets(direction_to_end, x_major):
+        new_location = (path[-1][0] + offset[0], path[-1][1] + offset[1])
+        if use_bounds:
+            within_bounds = 0 <= new_location[0] < width and 0 <= new_location[1] < height
+        else:
+            within_bounds = True
+        if new_location not in visited and new_location not in walls and within_bounds:
+            if all(offset):
+                _x_check = (path[-1][0] + offset[0], path[-1][1])
+                _y_check = (path[-1][0], path[-1][1] + offset[1])
+                if _x_check in walls and _y_check in walls:
+                    continue
+            found_location = True
+            visited.add(new_location)
+            break
+    if not found_location:
+        path.pop()
+        print 'No possible paths'
+        continue
+    path.append(new_location)
+    print path
+
+grid_str = []
+for y in range(height):
+    line = []
+    for x in range(width):
+        coordinate = (x, y)
+        if coordinate == start:
+            line.append('s')
+        elif coordinate == end:
+            line.append('e')
+        elif coordinate in path:
+            line.append('.')
+        elif grid[y][x]:
+            line.append('0')
+        else:
+            line.append('_')
+    grid_str.append(''.join(line))
+print '\n'.join(grid_str)
